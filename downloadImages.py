@@ -17,6 +17,7 @@ It defines classes_and_methods
 
 import sys
 import os
+import datetime
 
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
@@ -31,6 +32,7 @@ TESTRUN = 0
 PROFILE = 0
 
 global args
+downloadPrefix="/Users/jwd/Image Edit"
 platform = "Mac"
 
 class CLIError(Exception):
@@ -53,6 +55,17 @@ def findSourceVolume():
         if os.path.isdir(tp):
             vollist.append(d)
     return vollist;
+
+# Create the destination directory and return a path to it.
+def createDestinationDir(name):
+    d = os.path.join(downloadPrefix, name)
+    
+    # If the destination directory already exists, accept that silently.
+    if os.path.isdir(d):
+        return d
+    
+    os.makedirs(d)
+    return d
 
 def main(argv=None): # IGNORE:C0111
     '''Command line options.'''
@@ -91,11 +104,9 @@ USAGE
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
 
         # Process arguments
-        '''print "Before parse_args"
         args = parser.parse_args()
-        print "After parse_args"
         if args.verbose > 0:
-            print("Verbose mode on")'''
+            print("Verbose mode on")
        
         sourceVols = findSourceVolume()
         if (len(sourceVols) < 1):
@@ -104,6 +115,12 @@ USAGE
             raise CLIError("More than one DCF volume found.")
         sourceVol=sourceVols[0]
         print "Downloading images from {0}.".format(sourceVol)
+        
+        # Create the destination directory.
+        today = datetime.date.today()
+        dirName = str(today.month) + "-" + str(today.day) + " " + args.tag
+        createDestinationDir(dirName)
+        
         return 0
     
     except KeyboardInterrupt:
@@ -119,9 +136,7 @@ USAGE
 
 if __name__ == "__main__":
     if DEBUG:
-        sys.argv.append("-h")
         sys.argv.append("-v")
-        sys.argv.append("-r")
     if TESTRUN:
         import doctest
         doctest.testmod()
