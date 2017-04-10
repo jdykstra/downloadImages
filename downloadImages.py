@@ -21,13 +21,16 @@ import datetime
 import shutil
 import traceback
 
+import deleteUnderscore
+
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
+from macerrors import destPortErr
 
 __all__ = []
-__version__ = 0.1
+__version__ = 1.0
 __date__ = '2017-04-06'
-__updated__ = '2017-04-06'
+__updated__ = '2017-04-10'
 
 DEBUG = 1
 TESTRUN = 0
@@ -158,7 +161,7 @@ def copyImageFiles(images, destinationDirs, skips, description):
                 sidecar.close()
            
             
-# Programmatic API
+# Programmatic API.  Returns name (not path) of destination directories.
 def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
     
     # Find the source volume.  We can only handle one.
@@ -179,11 +182,11 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
     # entries in destinationPaths.
     destinationDirs = []
     duplicates = []
+    today = datetime.date.today()
+    dirName = str(today.month) + "-" + str(today.day) + " " + tag
     for destPath in destinationPaths:
         
         # Create the destination directory, if necessary.
-        today = datetime.date.today()
-        dirName = str(today.month) + "-" + str(today.day) + " " + tag
         destDir = createDestinationDir(destPath, dirName)
         destinationDirs.append(destDir)
         
@@ -199,7 +202,8 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
     # Delete the source files.
     if delete:
         print "Deleting images from {0}.\n".format(sourceVol[0])
-        shutil.rmtree(sourceVol[1]) 
+        shutil.rmtree(sourceVol[1])
+    return dirName
         
 #  CLI Interface
 def main(argv=None):
@@ -210,6 +214,8 @@ def main(argv=None):
         argv = sys.argv
     else:
         sys.argv.extend(argv)
+        
+    print argv
 
     program_name = os.path.basename(sys.argv[0])
     program_version = "v%s" % __version__
@@ -237,16 +243,23 @@ USAGE
         parser.add_argument("-t", "--tag", dest="tag", default="Downloaded Images", help="Tag used as destination directory name. [default: %(default)s]" )
         parser.add_argument("-d", "--description", dest="description", help="Description saved in each photo's sidecar.")
         parser.add_argument("-D", "--delete", dest="delete", action='store_true', help="Delete files from card after successful download.")
+        parser.add_argument("-a", "--automate", dest="automate", action='store_true', help="Execute deleteUnderscore and Photos.")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
         parser.add_argument("destinations", nargs='*', default=os.getcwd(), help="Destination directories for images;  Defaults to the working directory.")
 
         # Process arguments
-        args = parser.parse_args()
+        args = parser.parse_args(argv[1:])
+        
         if args.verbose > 0:
             print("Verbose mode on")
-       
-        doDownload(args.destinations, args.tag, args.description, args.delete, args.verbose)
+    
+        dirname = doDownload(args.destinations, args.tag, args.description, args.delete, args.verbose)
         
+        if args.automate:
+            for dest in args.destinations:
+                deleteUnderscore.main(["deleteUnderscore", "--delete-underscores", "--progress", os.path.join(dest, dirname)])
+                os.system("open -a Photos \""+os.path.join(args.destinations[0], dirname)+"\"")
+       
         return 0
     
     except KeyboardInterrupt:
@@ -262,20 +275,5 @@ USAGE
         return 2
 
 if __name__ == "__main__":
-    if DEBUG:
-        sys.argv.append("-v")
-    if TESTRUN:
-        import doctest
-        doctest.testmod()
-    if PROFILE:
-        import cProfile
-        import pstats
-        profile_filename = 'downloadImages_profile.txt'
-        cProfile.run('main()', profile_filename)
-        statsfile = open("profile_stats.txt", "wb")
-        p = pstats.Stats(profile_filename, stream=statsfile)
-        stats = p.strip_dirs().sort_stats('cumulative')
-        stats.print_stats()
-        statsfile.close()
-        sys.exit(0)
     sys.exit(main())
+    
