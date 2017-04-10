@@ -125,34 +125,35 @@ def lookForDuplicates(images, dst):
     
 
 # Copy the image files from the source to the destination and create the sidecar file.
-def copyImageFiles(images, skips, destinationDir, description):
+def copyImageFiles(images, destinationDirs, skips, description):
 
     for name in iter(images):
-        if name not in skips:
-            for kind in ['srcNEF', 'srcJPG']:
-                if kind in images[name]:
-                    filename = images[name][kind][1]
-                    srcpath = os.path.join(images[name][kind][0], filename)
-                    dstpath = os.path.join(destinationDir, filename)
-                    print "Copying from {0} to {1}.".format(srcpath, dstpath)
-                    shutil.copy2(srcpath, dstpath)
-            
-            # Create the sidecar file.
-            sidecar = open(os.path.join(destinationDir, name+".XMP"), "w")
-            sidecar.write("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n")
-            sidecar.write("<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n")
-            sidecar.write("\n")
-            sidecar.write("  <rdf:Description rdf:about=\"\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\">\n")
-            sidecar.write("    <dc:description>\n")
-            sidecar.write("      <rdf:Alt>\n")
-            sidecar.write("        <rdf:li xml:lang=\"x-default\">{0}&#xA;</rdf:li>\n".format(description))
-            sidecar.write("      </rdf:Alt>\n")
-            sidecar.write("    </dc:description>\n")
-            sidecar.write("  </rdf:Description>\n")
-            sidecar.write("\n")
-            sidecar.write("</rdf:RDF>\n")
-            sidecar.write("</x:xmpmeta>\n")
-            sidecar.close()
+        for dest, skip in zip(destinationDirs, skips):
+            if name not in skip:
+                for kind in ['srcNEF', 'srcJPG']:
+                    if kind in images[name]:
+                        filename = images[name][kind][1]
+                        srcpath = os.path.join(images[name][kind][0], filename)
+                        dstpath = os.path.join(dest, filename)
+                        print "Copying from {0} to {1}.".format(srcpath, dstpath)
+                        shutil.copy2(srcpath, dstpath)
+                
+                # Create the sidecar file.
+                sidecar = open(os.path.join(dest, name+".XMP"), "w")
+                sidecar.write("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n")
+                sidecar.write("<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n")
+                sidecar.write("\n")
+                sidecar.write("  <rdf:Description rdf:about=\"\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\">\n")
+                sidecar.write("    <dc:description>\n")
+                sidecar.write("      <rdf:Alt>\n")
+                sidecar.write("        <rdf:li xml:lang=\"x-default\">{0}&#xA;</rdf:li>\n".format(description))
+                sidecar.write("      </rdf:Alt>\n")
+                sidecar.write("    </dc:description>\n")
+                sidecar.write("  </rdf:Description>\n")
+                sidecar.write("\n")
+                sidecar.write("</rdf:RDF>\n")
+                sidecar.write("</x:xmpmeta>\n")
+                sidecar.close()
            
             
 # Programmatic API
@@ -172,20 +173,26 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
     print("Found %d image files." % (len(images)))
     
     # Handle multiple possible destinations.
+    # DestinationDirs and duplicates are lists in the same order as the
+    # entries in destinationPaths.
+    destinationDirs = []
+    duplicates = []
     for destPath in destinationPaths:
         
         # Create the destination directory, if necessary.
         today = datetime.date.today()
         dirName = str(today.month) + "-" + str(today.day) + " " + tag
-        destinationDir = createDestinationDir(destPath, dirName)
+        destDir = createDestinationDir(destPath, dirName)
+        destinationDirs.append(destDir)
         
         # Look for duplicate image files on the destination.
-        duplicates = lookForDuplicates(images, destinationDir)
-        if len(duplicates) > 0:
-            print("%d image files already exist in \"%s\". " % (len(duplicates), destinationDir))    
+        dups = lookForDuplicates(images, destDir)
+        duplicates.append(dups)
+        if len(dups) > 0:
+            print("%d image files already exist in \"%s\". " % (len(dups), destDir))    
         
-        # Copy the image files from the source to the destination and create the sidecar files.
-        copyImageFiles(images, duplicates, destinationDir, description)
+    # Copy the image files from the source to the destinations and create the sidecar files.
+    copyImageFiles(images, destinationDirs, duplicates, description)
      
     # Delete the source files.
     if delete:
