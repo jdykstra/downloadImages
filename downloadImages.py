@@ -158,9 +158,10 @@ def copyImageFiles(images, destinationDir, description):
             sidecar.write("</x:xmpmeta>\n")
             sidecar.close()
             
-# Download images.
+# Programmatic API
 def doDownload(tag, description, delete=False, verbose=False):
     
+    #  Find the source volume.  We can only handle one.
     sourceVols = findSourceVolume()
     if (len(sourceVols) < 1):
         raise CLIError("Could not find a DCF volume.")
@@ -184,7 +185,10 @@ def doDownload(tag, description, delete=False, verbose=False):
     # Copy the image files from the source to the destination and create the sidecar files.
     copyImageFiles(images, destinationDir, description)
         
+        
+#  CLI Interface
 def main(argv=None):
+
     '''Command line options.'''
 
     if argv is None:
