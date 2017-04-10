@@ -18,6 +18,8 @@ It defines classes_and_methods
 import sys
 import os
 import datetime
+import shutil
+import traceback
 
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
@@ -31,7 +33,6 @@ DEBUG = 1
 TESTRUN = 0
 PROFILE = 0
 
-global args
 downloadPrefix="/Users/jwd/Image Edit"
 platform = "Mac"
 
@@ -45,7 +46,7 @@ class CLIError(Exception):
     def __unicode__(self):
         return self.msg
 
-
+# Find potential source DCF volumes.  Return a list of (name, path) tuples.
 def findSourceVolume():
     vollist = []
     for d in os.listdir("/Volumes"):
@@ -53,7 +54,7 @@ def findSourceVolume():
             continue
         tp = os.path.join(os.path.join("/Volumes", d), "DCIM")
         if os.path.isdir(tp):
-            vollist.append(d)
+            vollist.append((d, tp))
     return vollist;
 
 # Create the destination directory and return a path to it.
@@ -67,10 +68,125 @@ def createDestinationDir(name):
     os.makedirs(d)
     return d
 
-def main(argv=None): # IGNORE:C0111
+# Return a dictionary describing all of the image files on the source..
+def findSourceImages(src):
+    images = {}
+    jpegCnt = 0
+
+    # Ennumerate the image files on the source volume.
+    for dirpath, dirs, files in os.walk(src):
+        for f in files:
+            
+            # Ignore files that don't look like camera image files,
+            # including hidden files.
+            if f.startswith("."):
+                continue
+            fparts = f.split(".")
+            if len(fparts) != 2:
+                continue
+            name = fparts[0].upper()
+            extension = fparts[-1].upper()
+            if extension not in ['JPG', 'NEF']:
+                continue
+            
+            # Dictionary "images" is indexed by the image name.  Its entries are themselves
+            # disctionaries, containing keys "srcNEF" and/or "srcJPG".  The contents of those
+            # entries is a sequence of the patchname followed by the filename.
+            if name in images:
+                nameentry = images[name]
+            else:
+                nameentry = {}
+            
+            nameentry["src" + extension] = (dirpath, f)
+
+            images[name] = nameentry;
+            
+            if extension == 'JPG':
+                jpegCnt += 1
+
+            print(os.path.join(dirpath, f))
+        
+    if jpegCnt > 0:
+         print("WARNING:  {0} JPEG files found!".format(jpegCnt))
+    return images
+
+# Look for files already in the destination directory.
+def lookForDuplicates(images, dst):
+    existingCnt = 0
+    
+    for name in iter(images):
+        for kind in ['srcNEF', 'srcJPG']:
+            if kind in images[name]:
+                filename = images[name][kind][1]
+                dstpath = os.path.join(dst, filename)
+                if os.path.exists(dstpath):
+                    srcpath = os.path.join(images[name][kind][0], filename)
+                    if (os.stat(dstpath).st_size == os.stat(srcpath).st_size):
+                        existingCnt += 1
+                        images[name]["duplicate"] = True
+    
+    if existingCnt > 0:
+        print("%d image files already exist. " % (existingCnt))    
+
+# Copy the image files from the source to the destination and create the sidecar file.
+def copyImageFiles(images, destinationDir, description):
+
+    for name in iter(images):
+        if 'duplicate' not in images[name]:
+            for kind in ['srcNEF', 'srcJPG']:
+                if kind in images[name]:
+                    filename = images[name][kind][1]
+                    srcpath = os.path.join(images[name][kind][0], filename)
+                    dstpath = os.path.join(destinationDir, filename)
+                    print "Copying from {0} to {1}.".format(srcpath, dstpath)
+                    shutil.copy2(srcpath, dstpath)
+            
+            # Create the sidecar file.
+            sidecar = open(os.path.join(destinationDir, name+".XMP"), "w")
+            sidecar.write("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n")
+            sidecar.write("<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n")
+            sidecar.write("\n")
+            sidecar.write("  <rdf:Description rdf:about=\"\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\">\n")
+            sidecar.write("    <dc:description>\n")
+            sidecar.write("      <rdf:Alt>\n")
+            sidecar.write("        <rdf:li xml:lang=\"x-default\">{0}&#xA;</rdf:li>\n".format(description))
+            sidecar.write("      </rdf:Alt>\n")
+            sidecar.write("    </dc:description>\n")
+            sidecar.write("  </rdf:Description>\n")
+            sidecar.write("\n")
+            sidecar.write("</rdf:RDF>\n")
+            sidecar.write("</x:xmpmeta>\n")
+            sidecar.close()
+            
+# Download images.
+def doDownload(tag, description, delete=False, verbose=False):
+    
+    sourceVols = findSourceVolume()
+    if (len(sourceVols) < 1):
+        raise CLIError("Could not find a DCF volume.")
+    if (len(sourceVols) > 1):
+        raise CLIError("More than one DCF volume found.")
+    sourceVol=sourceVols[0]
+    print "Downloading images from {0}.".format(sourceVol[0])
+
+    #  Find image files on the source volume.
+    images = findSourceImages(sourceVol[1])
+    print("Found %d image files." % (len(images)))
+    
+    # Create the destination directory, if necessary.
+    today = datetime.date.today()
+    dirName = str(today.month) + "-" + str(today.day) + " " + tag
+    destinationDir = createDestinationDir(dirName)
+    
+    # Look for duplicate image files on the destination.
+    lookForDuplicates(images, destinationDir)
+    
+    # Copy the image files from the source to the destination and create the sidecar files.
+    copyImageFiles(images, destinationDir, description)
+        
+def main(argv=None):
     '''Command line options.'''
 
-    global args
     if argv is None:
         argv = sys.argv
     else:
@@ -99,27 +215,17 @@ USAGE
         # Setup argument parser
         parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
         parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %(default)s]")
-        parser.add_argument("-t", "--tag", dest="tag", default="Downloaded Images", help="Tag used as destination directory name. [default: %(default)s]", metavar="TAG" )
-        parser.add_argument("-d", "--description", dest="description", default="No description provided.", help="Description saved in each photo's sidecar. [default: %(default)s]", metavar="DESC" )
+        parser.add_argument("-t", "--tag", dest="tag", default="Downloaded Images", help="Tag used as destination directory name. [default: %(default)s]" )
+        parser.add_argument("-d", "--delete", dest="delete", action='store_true', help="Delete files from card after successful download.")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
+        parser.add_argument("description", default="", help="Description saved in each photo's sidecar.")
 
         # Process arguments
         args = parser.parse_args()
         if args.verbose > 0:
             print("Verbose mode on")
        
-        sourceVols = findSourceVolume()
-        if (len(sourceVols) < 1):
-            raise CLIError("Could not find a DCF volume.")
-        if (len(sourceVols) > 1):
-            raise CLIError("More than one DCF volume found.")
-        sourceVol=sourceVols[0]
-        print "Downloading images from {0}.".format(sourceVol)
-        
-        # Create the destination directory.
-        today = datetime.date.today()
-        dirName = str(today.month) + "-" + str(today.day) + " " + args.tag
-        createDestinationDir(dirName)
+        doDownload(args.tag, args.description, args.delete, args.verbose)
         
         return 0
     
@@ -127,11 +233,12 @@ USAGE
         ### handle keyboard interrupt ###
         return 0
     except Exception, e:
+        traceback.print_tb(sys.exc_info()[2])
         if DEBUG or TESTRUN:
             raise(e)
         indent = len(program_name) * " "
         sys.stderr.write(program_name + ": " + repr(e) + "\n")
-        sys.stderr.write(indent + "  for help use --help")
+        sys.stderr.write(indent + "  for help use --help\n")
         return 2
 
 if __name__ == "__main__":
