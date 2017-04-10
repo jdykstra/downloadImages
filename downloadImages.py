@@ -33,7 +33,6 @@ DEBUG = 1
 TESTRUN = 0
 PROFILE = 0
 
-downloadPrefix="/Users/jwd/Image Edit"
 platform = "Mac"
 
 class CLIError(Exception):
@@ -58,8 +57,8 @@ def findSourceVolume():
     return vollist;
 
 # Create the destination directory and return a path to it.
-def createDestinationDir(name):
-    d = os.path.join(downloadPrefix, name)
+def createDestinationDir(destPath, name):
+    d = os.path.join(destPath, name)
     
     # If the destination directory already exists, accept that silently.
     if os.path.isdir(d):
@@ -107,12 +106,12 @@ def findSourceImages(src):
             print(os.path.join(dirpath, f))
         
     if jpegCnt > 0:
-         print("WARNING:  {0} JPEG files found!".format(jpegCnt))
+        print("WARNING:  {0} JPEG files found!".format(jpegCnt))
     return images
 
-# Look for files already in the destination directory.
+# Return a list of files already in the destination directory.
 def lookForDuplicates(images, dst):
-    existingCnt = 0
+    duplicates =[]
     
     for name in iter(images):
         for kind in ['srcNEF', 'srcJPG']:
@@ -122,17 +121,16 @@ def lookForDuplicates(images, dst):
                 if os.path.exists(dstpath):
                     srcpath = os.path.join(images[name][kind][0], filename)
                     if (os.stat(dstpath).st_size == os.stat(srcpath).st_size):
-                        existingCnt += 1
-                        images[name]["duplicate"] = True
+                        duplicates.append(name)
     
-    if existingCnt > 0:
-        print("%d image files already exist. " % (existingCnt))    
+    return duplicates
+    
 
 # Copy the image files from the source to the destination and create the sidecar file.
-def copyImageFiles(images, destinationDir, description):
+def copyImageFiles(images, skips, destinationDir, description):
 
     for name in iter(images):
-        if 'duplicate' not in images[name]:
+        if name not in skips:
             for kind in ['srcNEF', 'srcJPG']:
                 if kind in images[name]:
                     filename = images[name][kind][1]
@@ -157,9 +155,10 @@ def copyImageFiles(images, destinationDir, description):
             sidecar.write("</rdf:RDF>\n")
             sidecar.write("</x:xmpmeta>\n")
             sidecar.close()
+           
             
 # Programmatic API
-def doDownload(tag, description, delete=False, verbose=False):
+def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
     
     #  Find the source volume.  We can only handle one.
     sourceVols = findSourceVolume()
@@ -174,16 +173,23 @@ def doDownload(tag, description, delete=False, verbose=False):
     images = findSourceImages(sourceVol[1])
     print("Found %d image files." % (len(images)))
     
-    # Create the destination directory, if necessary.
-    today = datetime.date.today()
-    dirName = str(today.month) + "-" + str(today.day) + " " + tag
-    destinationDir = createDestinationDir(dirName)
-    
-    # Look for duplicate image files on the destination.
-    lookForDuplicates(images, destinationDir)
-    
-    # Copy the image files from the source to the destination and create the sidecar files.
-    copyImageFiles(images, destinationDir, description)
+    print destinationPaths
+    print type(destinationPaths)
+    for destPath in destinationPaths:
+        print destPath
+        
+        # Create the destination directory, if necessary.
+        today = datetime.date.today()
+        dirName = str(today.month) + "-" + str(today.day) + " " + tag
+        destinationDir = createDestinationDir(destPath, dirName)
+        
+        # Look for duplicate image files on the destination.
+        duplicates = lookForDuplicates(images, destinationDir)
+        if len(duplicates) > 0:
+            print("%d image files already exist in \"%s\". " % (len(duplicates), destinationDir))    
+        
+        # Copy the image files from the source to the destination and create the sidecar files.
+        copyImageFiles(images, duplicates, destinationDir, description)
         
         
 #  CLI Interface
@@ -220,16 +226,17 @@ USAGE
         parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
         parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %(default)s]")
         parser.add_argument("-t", "--tag", dest="tag", default="Downloaded Images", help="Tag used as destination directory name. [default: %(default)s]" )
-        parser.add_argument("-d", "--delete", dest="delete", action='store_true', help="Delete files from card after successful download.")
+        parser.add_argument("-d", "--description", dest="description", help="Description saved in each photo's sidecar.")
+        parser.add_argument("-D", "--delete", dest="delete", action='store_true', help="Delete files from card after successful download.")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
-        parser.add_argument("description", default="", help="Description saved in each photo's sidecar.")
+        parser.add_argument("destinations", nargs='*', default=os.getcwd(), help="Destination directories for images;  Defaults to the working directory.")
 
         # Process arguments
         args = parser.parse_args()
         if args.verbose > 0:
             print("Verbose mode on")
        
-        doDownload(args.tag, args.description, args.delete, args.verbose)
+        doDownload(args.destinations, args.tag, args.description, args.delete, args.verbose)
         
         return 0
     
