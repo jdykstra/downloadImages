@@ -127,7 +127,9 @@ def lookForDuplicates(images, dst):
 # Copy the image files from the source to the destination and create the sidecar file.
 def copyImageFiles(images, destinationDirs, skips, description):
 
+    progress = 0
     for name in iter(images):
+        progress += 1
         for dest, skip in zip(destinationDirs, skips):
             if name not in skip:
                 for kind in ['srcNEF', 'srcJPG']:
@@ -135,7 +137,7 @@ def copyImageFiles(images, destinationDirs, skips, description):
                         filename = images[name][kind][1]
                         srcpath = os.path.join(images[name][kind][0], filename)
                         dstpath = os.path.join(dest, filename)
-                        print "Copying from {0} to {1}.".format(srcpath, dstpath)
+                        print "{0}%:  {1} to {2}.".format((progress * 100) / len(images), name, dstpath)
                         shutil.copy2(srcpath, dstpath)
                 
                 # Create the sidecar file.
