@@ -102,8 +102,6 @@ def findSourceImages(src):
             
             if extension == 'JPG':
                 jpegCnt += 1
-
-            print(os.path.join(dirpath, f))
         
     if jpegCnt > 0:
         print("WARNING:  {0} JPEG files found!".format(jpegCnt))
@@ -160,7 +158,7 @@ def copyImageFiles(images, skips, destinationDir, description):
 # Programmatic API
 def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
     
-    #  Find the source volume.  We can only handle one.
+    # Find the source volume.  We can only handle one.
     sourceVols = findSourceVolume()
     if (len(sourceVols) < 1):
         raise CLIError("Could not find a DCF volume.")
@@ -169,14 +167,12 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
     sourceVol=sourceVols[0]
     print "Downloading images from {0}.".format(sourceVol[0])
 
-    #  Find image files on the source volume.
+    # Find image files on the source volume.
     images = findSourceImages(sourceVol[1])
     print("Found %d image files." % (len(images)))
     
-    print destinationPaths
-    print type(destinationPaths)
+    # Handle multiple possible destinations.
     for destPath in destinationPaths:
-        print destPath
         
         # Create the destination directory, if necessary.
         today = datetime.date.today()
@@ -190,7 +186,11 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
         
         # Copy the image files from the source to the destination and create the sidecar files.
         copyImageFiles(images, duplicates, destinationDir, description)
-        
+     
+    # Delete the source files.
+    if delete:
+        print "Deleting images from {0}.\n".format(sourceVol[0])
+        shutil.rmtree(sourceVol[1]) 
         
 #  CLI Interface
 def main(argv=None):
