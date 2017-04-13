@@ -21,14 +21,13 @@ import datetime
 import shutil
 import traceback
 
-import deleteUnderscore
+from AppKit import NSWorkspace
 
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
-from macerrors import destPortErr
 
 __all__ = []
-__version__ = 1.0
+__version__ = 1.1
 __date__ = '2017-04-06'
 __updated__ = '2017-04-10'
 
@@ -86,7 +85,8 @@ def findSourceImages(src):
             fparts = f.split(".")
             if len(fparts) != 2:
                 continue
-            name = fparts[0].upper()
+            origName = fparts[0].upper()
+            newname = origName.replace("_", "")
             extension = fparts[-1].upper()
             if extension not in ['JPG', 'NEF']:
                 continue
@@ -94,15 +94,11 @@ def findSourceImages(src):
             # Dictionary "images" is indexed by the image name.  Its entries are themselves
             # disctionaries, containing keys "srcNEF" and/or "srcJPG".  The contents of those
             # entries is a sequence of the patchname followed by the filename.
-            if name in images:
-                nameentry = images[name]
+            if newname in images:
+                images[newname]["extensions"].append(extension)
             else:
-                nameentry = {}
-            
-            nameentry["src" + extension] = (dirpath, f)
-
-            images[name] = nameentry;
-            
+                images[newname] = dict(extensions = [extension], srcPath = dirpath, origName = origName)
+                        
             if extension == 'JPG':
                 jpegCnt += 1
         
@@ -115,14 +111,13 @@ def lookForDuplicates(images, dst):
     duplicates =[]
     
     for name in iter(images):
-        for kind in ['srcNEF', 'srcJPG']:
-            if kind in images[name]:
-                filename = images[name][kind][1]
-                dstpath = os.path.join(dst, filename)
-                if os.path.exists(dstpath):
-                    srcpath = os.path.join(images[name][kind][0], filename)
-                    if (os.stat(dstpath).st_size == os.stat(srcpath).st_size):
-                        duplicates.append(name)
+        for ext in images[name]["extensions"]:
+            filename = name + "." + ext
+            dstpath = os.path.join(dst, filename)
+            if os.path.exists(dstpath):
+                srcpath = os.path.join(images[name]["srcPath"], images[name]["origName"] + "." + ext)
+                if (os.stat(dstpath).st_size == os.stat(srcpath).st_size):
+                    duplicates.append(name)
     
     return duplicates
     
@@ -132,16 +127,15 @@ def copyImageFiles(images, destinationDirs, skips, description):
 
     progress = 0
     for name in iter(images):
+        entry = images[name]
         progress += 1
         for dest, skip in zip(destinationDirs, skips):
             if name not in skip:
-                for kind in ['srcNEF', 'srcJPG']:
-                    if kind in images[name]:
-                        filename = images[name][kind][1]
-                        srcpath = os.path.join(images[name][kind][0], filename)
-                        dstpath = os.path.join(dest, filename)
-                        print "{0}%:  {1} to {2}.".format((progress * 100) / len(images), name, dstpath)
-                        shutil.copy2(srcpath, dstpath)
+                for ext in entry["extensions"]:
+                    srcpath = os.path.join(entry["srcPath"], entry["origName"] + "." + ext)
+                    dstpath = os.path.join(dest, name + "." + ext)
+                    print "{0}%:  {1} to {2}.".format((progress * 100) / len(images), name, dstpath)
+                    shutil.copy2(srcpath, dstpath)
                 
                 # Create the sidecar file.
                 sidecar = open(os.path.join(dest, name+".XMP"), "w")
@@ -175,7 +169,7 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
 
     # Find image files on the source volume.
     images = findSourceImages(sourceVol[1])
-    print("Found %d image files." % (len(images)))
+    print("Found %d already-downloaded image files." % (len(images)))
     
     # Handle multiple possible destinations.
     # DestinationDirs and duplicates are lists in the same order as the
@@ -203,6 +197,13 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
     if delete:
         print "Deleting images from {0}.\n".format(sourceVol[0])
         shutil.rmtree(sourceVol[1])
+        
+    # Request the Finder to eject the source volume.
+    workspace = NSWorkspace.alloc()
+    ejected = workspace.unmountAndEjectDeviceAtPath_(sourceVol[1])
+    if not ejected:
+        print "ERROR - Could not eject {0}!".format(sourceVol[0])
+
     return dirName
         
 #  CLI Interface
@@ -257,7 +258,6 @@ USAGE
         
         if args.automate:
             for dest in args.destinations:
-                deleteUnderscore.main(["deleteUnderscore", "--delete-underscores", "--progress", os.path.join(dest, dirname)])
                 os.system("open -a Photos \""+os.path.join(args.destinations[0], dirname)+"\"")
        
         return 0
