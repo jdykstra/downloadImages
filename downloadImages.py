@@ -165,11 +165,10 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
     if (len(sourceVols) > 1):
         raise CLIError("More than one DCF volume found.")
     sourceVol=sourceVols[0]
-    print "Downloading images from {0}.".format(sourceVol[0])
 
     # Find image files on the source volume.
     images = findSourceImages(sourceVol[1])
-    print("Found %d already-downloaded image files." % (len(images)))
+    print("{0} image files found on {1}.".format(len(images), sourceVol[0]))
     
     # Handle multiple possible destinations.
     # DestinationDirs and duplicates are lists in the same order as the
@@ -201,9 +200,11 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
     # Request the Finder to eject the source volume.
     workspace = NSWorkspace.alloc()
     ejected = workspace.unmountAndEjectDeviceAtPath_(sourceVol[1])
-    if not ejected:
-        print "ERROR - Could not eject {0}!".format(sourceVol[0])
-
+    if ejected:
+        print "All images successfully downloaded and {0} ejected.".format(sourceVol[0])
+    else:
+        print "ERROR - All images successfully downloaded, but could not eject {0}!".format(sourceVol[0])
+     
     return dirName
         
 #  CLI Interface
