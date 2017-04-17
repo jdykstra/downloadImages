@@ -19,6 +19,7 @@ import sys
 import os
 import datetime
 import shutil
+import time
 import traceback
 
 from AppKit import NSWorkspace
@@ -41,7 +42,7 @@ class CLIError(Exception):
     '''Generic exception to raise and log different fatal errors.'''
     def __init__(self, msg):
         super(CLIError).__init__(type(self))
-        self.msg = "E: %s" % msg
+        self.msg = "ERROR: %s" % msg
     def __str__(self):
         return self.msg
     def __unicode__(self):
@@ -198,8 +199,13 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
         shutil.rmtree(sourceVol[1])
         
     # Request the Finder to eject the source volume.
-    workspace = NSWorkspace.alloc()
-    ejected = workspace.unmountAndEjectDeviceAtPath_(sourceVol[1])
+    for attempt in range(1, 20):
+        workspace = NSWorkspace.alloc()
+        ejected = workspace.unmountAndEjectDeviceAtPath_(os.path.join("/Volumes", sourceVol[0]))
+        if ejected:
+            break
+        print "Attempting to eject {0}...".format(sourceVol[0])
+        time.sleep(1)
     if ejected:
         print "All images successfully downloaded and {0} ejected.".format(sourceVol[0])
     else:
@@ -217,8 +223,6 @@ def main(argv=None):
     else:
         sys.argv.extend(argv)
         
-    print argv
-
     program_name = os.path.basename(sys.argv[0])
     program_version = "v%s" % __version__
     program_build_date = str(__updated__)
@@ -259,13 +263,18 @@ USAGE
         
         if args.automate:
             for dest in args.destinations:
-                os.system("open -a Photos \""+os.path.join(args.destinations[0], dirname)+"\"")
+                os.system("open -a Lightroom")
        
         return 0
     
     except KeyboardInterrupt:
         ### handle keyboard interrupt ###
-        return 0
+        return 2
+    
+    except CLIError, e:
+        print e
+        return 2
+    
     except Exception, e:
         traceback.print_tb(sys.exc_info()[2])
         if DEBUG or TESTRUN:
