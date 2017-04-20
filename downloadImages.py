@@ -74,6 +74,7 @@ def createDestinationDir(destPath, name):
 def findSourceImages(src):
     images = {}
     jpegCnt = 0
+    movCnt = 0
 
     # Ennumerate the image files on the source volume.
     for dirpath, dirs, files in os.walk(src):
@@ -89,7 +90,7 @@ def findSourceImages(src):
             origName = fparts[0].upper()
             newname = origName.replace("_", "")
             extension = fparts[-1].upper()
-            if extension not in ['JPG', 'NEF']:
+            if extension not in ['JPG', 'NEF', 'MOV']:
                 continue
             
             # Dictionary "images" is indexed by the image name.  Its entries are themselves
@@ -102,9 +103,13 @@ def findSourceImages(src):
                         
             if extension == 'JPG':
                 jpegCnt += 1
+            elif extension == 'MOV':
+                movCnt += 1
         
     if jpegCnt > 0:
         print("WARNING:  {0} JPEG files found!".format(jpegCnt))
+    if movCnt > 0:
+        print("{0} video files found.".format(movCnt))
     return images
 
 # Return a list of files already in the destination directory.
