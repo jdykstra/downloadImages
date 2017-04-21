@@ -15,10 +15,11 @@ It defines classes_and_methods
 @deffield    updated: Updated
 '''
 
-import sys
 import os
 import datetime
 import shutil
+import subprocess
+import sys
 import time
 import traceback
 
@@ -163,7 +164,7 @@ def copyImageFiles(images, destinationDirs, skips, description):
             
 # Programmatic API.  Returns name (not path) of destination directories.
 def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
-    
+       
     # Find the source volume.  We can only handle one.
     sourceVols = findSourceVolume()
     if (len(sourceVols) < 1):
@@ -247,6 +248,8 @@ def main(argv=None):
 USAGE
 ''' % (program_shortdesc, str(__date__))
 
+    caffeinateProcess = None
+    
     try:
         # Setup argument parser
         parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
@@ -264,8 +267,15 @@ USAGE
         if args.verbose > 0:
             print("Verbose mode on")
     
+        if 'darwin' in sys.platform:
+            caffeinateProcess = subprocess.Popen(('caffeinate', '-i'))
+            print('Running \'caffeinate\' on MacOSX to prevent the system from sleeping')
+
         dirname = doDownload(args.destinations, args.tag, args.description, args.delete, args.verbose)
         
+        if caffeinateProcess != None:
+            caffeinateProcess.terminate()
+
         if args.automate:
             for dest in args.destinations:
                 os.system("open -a Lightroom")
@@ -273,15 +283,21 @@ USAGE
         return 0
     
     except KeyboardInterrupt:
+        if caffeinateProcess != None:
+            caffeinateProcess.terminate()
         ### handle keyboard interrupt ###
         return 2
     
     except CLIError, e:
         print e
+        if caffeinateProcess != None:
+            caffeinateProcess.terminate()
         return 2
     
     except Exception, e:
         traceback.print_tb(sys.exc_info()[2])
+        if caffeinateProcess != None:
+            caffeinateProcess.terminate()
         if DEBUG or TESTRUN:
             raise(e)
         indent = len(program_name) * " "
