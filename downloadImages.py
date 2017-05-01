@@ -13,6 +13,11 @@ It defines classes_and_methods
 
 @contact:    jdykstra72@gmail.com
 @deffield    updated: Updated
+
+??  Todo - Beep on end
+           Better progress indicator
+           Detect (and handle?) rollovers
+           Get info via dialog
 '''
 
 import os
@@ -271,14 +276,14 @@ USAGE
             caffeinateProcess = subprocess.Popen(('caffeinate', '-i'))
             print('Running \'caffeinate\' on MacOSX to prevent the system from sleeping')
 
-        dirname = doDownload(args.destinations, args.tag, args.description, args.delete, args.verbose)
+        dirName = doDownload(args.destinations, args.tag, args.description, args.delete, args.verbose)
         
         if caffeinateProcess != None:
             caffeinateProcess.terminate()
 
         if args.automate:
-            for dest in args.destinations:
-                os.system("open -a Lightroom")
+            print os.path.join(args.destinations[0], dirName)
+            os.system("open -a \"Adobe Lightroom\" \"" + os.path.join(args.destinations[0], dirName) + "\"")
        
         return 0
     
