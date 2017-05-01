@@ -14,8 +14,7 @@ It defines classes_and_methods
 @contact:    jdykstra72@gmail.com
 @deffield    updated: Updated
 
-??  Todo - Beep on end
-           Better progress indicator
+??  Todo - Better progress indicator
            Detect (and handle?) rollovers
            Get info via dialog
 '''
@@ -146,7 +145,7 @@ def copyImageFiles(images, destinationDirs, skips, description):
                 for ext in entry["extensions"]:
                     srcpath = os.path.join(entry["srcPath"], entry["origName"] + "." + ext)
                     dstpath = os.path.join(dest, name + "." + ext)
-                    print "{0}%:  {1} to {2}.".format((progress * 100) / len(images), name, dstpath)
+                    sys.stdout.write("{0}%:  {1} to {2}.".format((progress * 100) / len(images), name, dstpath))
                     shutil.copy2(srcpath, dstpath)
                 
                 # Create the sidecar file.
