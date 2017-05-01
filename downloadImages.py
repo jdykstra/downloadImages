@@ -14,8 +14,7 @@ It defines classes_and_methods
 @contact:    jdykstra72@gmail.com
 @deffield    updated: Updated
 
-??  Todo - Better progress indicator
-           Detect (and handle?) rollovers
+??  Todo - Detect (and handle?) rollovers
            Get info via dialog
 '''
 
@@ -145,7 +144,8 @@ def copyImageFiles(images, destinationDirs, skips, description):
                 for ext in entry["extensions"]:
                     srcpath = os.path.join(entry["srcPath"], entry["origName"] + "." + ext)
                     dstpath = os.path.join(dest, name + "." + ext)
-                    sys.stdout.write("{0}%:  {1} to {2}.".format((progress * 100) / len(images), name, dstpath))
+                    sys.stdout.write("{0}%:  {1} to {2}.\r".format((progress * 100) / len(images), name, dstpath))
+                    sys.stdout.flush()
                     shutil.copy2(srcpath, dstpath)
                 
                 # Create the sidecar file.
@@ -164,7 +164,9 @@ def copyImageFiles(images, destinationDirs, skips, description):
                 sidecar.write("</rdf:RDF>\n")
                 sidecar.write("</x:xmpmeta>\n")
                 sidecar.close()
-           
+     
+    sys.stdout.write("/n")      
+    sys.stdout.flush()      
             
 # Programmatic API.  Returns name (not path) of destination directories.
 def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
