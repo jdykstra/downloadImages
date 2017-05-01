@@ -165,7 +165,7 @@ def copyImageFiles(images, destinationDirs, skips, description):
                 sidecar.write("</x:xmpmeta>\n")
                 sidecar.close()
      
-    sys.stdout.write("/n")      
+    sys.stdout.write("\033[K")      #  Clear to end of line
     sys.stdout.flush()      
             
 # Programmatic API.  Returns name (not path) of destination directories.
