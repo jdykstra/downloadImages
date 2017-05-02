@@ -275,7 +275,6 @@ USAGE
     
         if 'darwin' in sys.platform:
             caffeinateProcess = subprocess.Popen(('caffeinate', '-i'))
-            print('Running \'caffeinate\' on MacOSX to prevent the system from sleeping')
 
         dirName = doDownload(args.destinations, args.tag, args.description, args.delete, args.verbose)
         
@@ -283,7 +282,6 @@ USAGE
             caffeinateProcess.terminate()
 
         if args.automate:
-            print os.path.join(args.destinations[0], dirName)
             os.system("open -a \"Adobe Lightroom\" \"" + os.path.join(args.destinations[0], dirName) + "\"")
        
         return 0
