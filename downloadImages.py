@@ -16,6 +16,15 @@ It defines classes_and_methods
 
 ??  Todo - Detect (and handle?) rollovers
            Get info via dialog
+           Set color or other flag from image write-protect
+           override rwxrwxrwx  jwd/staff uchg for /Volumes/NIKON D7100/DCIM/108D7200/_CEB5556.NEF?
+           chflags -R nouchg /PATH/TO/DIRECTORY/WITH/LOCKED/FILES/
+           SetFile -a l file.ext
+            jwd@oak-2 ~ $ ls -lhdO '/Volumes/NIKON D7100/DCIM/108D7200/_CEB5556.NEF'
+           -rwxrwxrwx  1 jwd  staff  uchg   28M May 20 17:48 /Volumes/NIKON D7100/DCIM/108D7200/_CEB5556.NEF*
+   1:             Windows_FAT_32 NIKON D7100             15.9 GB    disk7s1
+   
+   
 '''
 
 import os
