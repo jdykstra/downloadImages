@@ -15,6 +15,7 @@ It defines classes_and_methods
 @deffield    updated: Updated
 
 ??  Todo - Detect (and handle?) rollovers
+            ALWAYS stop cafinate on Mac OS
            Get info via dialog
            Set color or other flag from image write-protect
            override rwxrwxrwx  jwd/staff uchg for /Volumes/NIKON D7100/DCIM/108D7200/_CEB5556.NEF?
