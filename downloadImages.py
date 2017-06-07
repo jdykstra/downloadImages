@@ -15,7 +15,7 @@ It defines classes_and_methods
 @deffield    updated: Updated
 
 ??  Todo - Detect (and handle?) rollovers
-            ALWAYS stop cafinate on Mac OS
+           Caffeinate wasn't killed, probably after trying to delete a locked file.
            Get info via dialog
            Set color or other flag from image write-protect
            override rwxrwxrwx  jwd/staff uchg for /Volumes/NIKON D7100/DCIM/108D7200/_CEB5556.NEF?
@@ -297,7 +297,9 @@ USAGE
         return 0
     
     except KeyboardInterrupt:
+        print "Keyboard interrupt"
         if caffeinateProcess != None:
+            print "Killing caffeinate"
             caffeinateProcess.terminate()
         ### handle keyboard interrupt ###
         return 2
@@ -309,8 +311,10 @@ USAGE
         return 2
     
     except Exception, e:
+        print "Exception caught"
         traceback.print_tb(sys.exc_info()[2])
         if caffeinateProcess != None:
+            print "Killing caffeinate"
             caffeinateProcess.terminate()
         if DEBUG or TESTRUN:
             raise(e)
