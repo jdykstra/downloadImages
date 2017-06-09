@@ -18,6 +18,12 @@ It defines classes_and_methods
            Caffeinate wasn't killed, probably after trying to delete a locked file.
            Get info via dialog
            Set color or other flag from image write-protect
+               Nikon cameras format SD cards with exFAT filesystems.  Mac OS externalizes
+               write protect as the user immutable flag.  I haven't found any Python API
+               that tests that flag;  stat.SF_IMMUTABLE doesn't work.  We could run
+               the Mac OS command that tests the flag, but spawning a process for every
+               input file doesn't seem like a good thing for performance.  So this
+               feature is on hold.
            override rwxrwxrwx  jwd/staff uchg for /Volumes/NIKON D7100/DCIM/108D7200/_CEB5556.NEF?
            chflags -R nouchg /PATH/TO/DIRECTORY/WITH/LOCKED/FILES/
            SetFile -a l file.ext
@@ -30,7 +36,9 @@ It defines classes_and_methods
 
 import os
 import datetime
+import io
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -159,6 +167,12 @@ def copyImageFiles(images, destinationDirs, skips, description):
                     sys.stdout.flush()
                     shutil.copy2(srcpath, dstpath)
                 
+                # See if this file is write-protected.
+                wp = os.stat(srcpath).st_mode & stat.SF_IMMUTABLE                
+                print "{0:x} {1:s}\n".format(os.stat(srcpath).st_mode, srcpath)
+                if wp:
+                    print srcpath + " is write-protected!"
+                    
                 # Create the sidecar file.
                 sidecar = open(os.path.join(dest, name+".XMP"), "w")
                 sidecar.write("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n")
@@ -166,6 +180,10 @@ def copyImageFiles(images, destinationDirs, skips, description):
                 sidecar.write("\n")
                 sidecar.write("  <rdf:Description rdf:about=\"\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\">\n")
                 sidecar.write("    <dc:description>\n")
+                '''
+                if wp:
+                    sidecar.write("     xmp:Label=\"Purple\"\n")
+                '''
                 sidecar.write("      <rdf:Alt>\n")
                 sidecar.write("        <rdf:li xml:lang=\"x-default\">{0}&#xA;</rdf:li>\n".format(description))
                 sidecar.write("      </rdf:Alt>\n")
