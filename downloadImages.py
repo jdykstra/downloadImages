@@ -42,15 +42,16 @@ from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
 
 __all__ = []
-__version__ = 1.1
+__version__ = 1.2
 __date__ = '2017-04-06'
-__updated__ = '2017-04-10'
+__updated__ = '2017-11-26'
 
 DEBUG = 1
 TESTRUN = 0
 PROFILE = 0
 
 platform = "Mac"
+lightroom = "Adobe Lightroom Classic CC"
 
 class CLIError(Exception):
     '''Generic exception to raise and log different fatal errors.'''
@@ -292,7 +293,7 @@ USAGE
             caffeinateProcess.terminate()
 
         if args.automate:
-            os.system("open -a \"Adobe Lightroom\" \"" + os.path.join(args.destinations[0], dirName) + "\"")
+            os.system("open -a \"" + lightroom + "\" \"" + os.path.join(args.destinations[0], dirName) + "\"")
        
         return 0
     
