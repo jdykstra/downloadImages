@@ -167,9 +167,9 @@ def copyImageFiles(images, destinationDirs, skips, description):
                     sys.stdout.flush()
                     shutil.copy2(srcpath, dstpath)
                 
-                # See if this file is write-protected.
-                wp = os.stat(srcpath).st_mode & stat.SF_IMMUTABLE                
-                print "{0:x} {1:s}\n".format(os.stat(srcpath).st_mode, srcpath)
+                # See if this file's user immutable flag is set.
+                wp = os.stat(srcpath).st_flags & stat.UF_IMMUTABLE                
+                print "{0:x} {1:s}\n".format(os.stat(srcpath).st_flags, srcpath)
                 if wp:
                     print srcpath + " is write-protected!"
                     
@@ -178,12 +178,13 @@ def copyImageFiles(images, destinationDirs, skips, description):
                 sidecar.write("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n")
                 sidecar.write("<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n")
                 sidecar.write("\n")
-                sidecar.write("  <rdf:Description rdf:about=\"\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\">\n")
-                sidecar.write("    <dc:description>\n")
-                '''
+                sidecar.write("  <rdf:Description rdf:about=\"\"\n")
+                sidecar.write("     xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"\n")
+                sidecar.write("     xmlns:dc=\"http://purl.org/dc/elements/1.1/\"\n")
                 if wp:
                     sidecar.write("     xmp:Label=\"Purple\"\n")
-                '''
+                sidecar.write("     >\n")
+                sidecar.write("     <dc:description>\n")
                 sidecar.write("      <rdf:Alt>\n")
                 sidecar.write("        <rdf:li xml:lang=\"x-default\">{0}&#xA;</rdf:li>\n".format(description))
                 sidecar.write("      </rdf:Alt>\n")
