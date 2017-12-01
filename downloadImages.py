@@ -14,8 +14,7 @@ It defines classes_and_methods
 @contact:    jdykstra72@gmail.com
 @deffield    updated: Updated
 
-??  Todo - Detect (and handle?) rollovers
-           Caffeinate wasn't killed, probably after trying to delete a locked file.
+??  Todo - Caffeinate wasn't killed, probably after trying to delete a locked file.
            Get info via dialog
    
 '''
@@ -84,7 +83,8 @@ def findSourceImages(src):
     jpegCnt = 0
     movCnt = 0
     nearRollover = False
-
+    rolloverOccurred = False
+    
     # Enumerate the image files on the source volume.
     for dirpath, dirs, files in os.walk(src):
         for f in files:
@@ -104,6 +104,7 @@ def findSourceImages(src):
             
             # Remember if the number part of the image name is getting near the rollover point.
             nearRollover |= newname[-4] == '9'
+            rolloverOccurred |= newname[-4:] == "9999"
             
             # Dictionary "images" is indexed by the image name.  Its entries are themselves
             # dictionaries, containing keys "srcNEF" and/or "srcJPG".  The contents of those
@@ -121,7 +122,9 @@ def findSourceImages(src):
         print("WARNING:  {0} JPEG files found!".format(jpegCnt))
     if movCnt > 0:
         print("{0} video files found.".format(movCnt))
-    if nearRollover:
+    if rolloverOccurred:
+        print("WARNING:  Image numbers rolled over!")
+    elif nearRollover:
         print("WARNING:  Image numbers are nearing the rollover point!")
     return images
 
