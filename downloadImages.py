@@ -152,7 +152,7 @@ def lookForDuplicates(images, dst):
     
 
 # Copy the image files from the source to the destination and create the sidecar file.
-def copyImageFiles(images, destinationDirs, skips, description):
+def copyImageFiles(images, destinationDirs, skips, description, delete=False):
 
     progress = 0
     for name in iter(images):
@@ -167,11 +167,20 @@ def copyImageFiles(images, destinationDirs, skips, description):
                     sys.stdout.flush()
                     shutil.copy2(srcpath, dstpath)
                 
-                # See if this file's user immutable flag is set.
-                wp = os.stat(srcpath).st_flags & stat.UF_IMMUTABLE                
-                print "{0:x} {1:s}\n".format(os.stat(srcpath).st_flags, srcpath)
+                # If write protect was set on an image by the camera, it will appear to us
+                # as the user-immutable flag.  Look for this, and clear it on the copy.  We'll
+                # flag the image with a Lightroom color below.  Only clear the flag on the
+                # original image if we're going to delete it.  This allows us to redo a download
+                # if necessary and get the same results, while still avoiding errors during the
+                # delete due to the immutable flag.
+                origFlags = os.stat(srcpath).st_flags
+                wp = origFlags & stat.UF_IMMUTABLE                
+                print "{0:x} {1:s}\n".format(origFlags, srcpath)
                 if wp:
                     print srcpath + " is write-protected!"
+                    os.chflags(dstpath, origFlags & ~stat.UF_IMMUTABLE)
+                    if delete:
+                        os.chflags(srcpath, origFlags & ~stat.UF_IMMUTABLE)
                     
                 # Create the sidecar file.
                 sidecar = open(os.path.join(dest, name+".XMP"), "w")
@@ -233,7 +242,7 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
             print("%d image files already exist in \"%s\". " % (len(dups), destDir))    
         
     # Copy the image files from the source to the destinations and create the sidecar files.
-    copyImageFiles(images, destinationDirs, duplicates, description)
+    copyImageFiles(images, destinationDirs, duplicates, description, delete)
      
     # Delete the source files.
     if delete:
