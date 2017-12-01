@@ -17,20 +17,6 @@ It defines classes_and_methods
 ??  Todo - Detect (and handle?) rollovers
            Caffeinate wasn't killed, probably after trying to delete a locked file.
            Get info via dialog
-           Set color or other flag from image write-protect
-               Nikon cameras format SD cards with exFAT filesystems.  Mac OS externalizes
-               write protect as the user immutable flag.  I haven't found any Python API
-               that tests that flag;  stat.SF_IMMUTABLE doesn't work.  We could run
-               the Mac OS command that tests the flag, but spawning a process for every
-               input file doesn't seem like a good thing for performance.  So this
-               feature is on hold.
-           override rwxrwxrwx  jwd/staff uchg for /Volumes/NIKON D7100/DCIM/108D7200/_CEB5556.NEF?
-           chflags -R nouchg /PATH/TO/DIRECTORY/WITH/LOCKED/FILES/
-           SetFile -a l file.ext
-            jwd@oak-2 ~ $ ls -lhdO '/Volumes/NIKON D7100/DCIM/108D7200/_CEB5556.NEF'
-           -rwxrwxrwx  1 jwd  staff  uchg   28M May 20 17:48 /Volumes/NIKON D7100/DCIM/108D7200/_CEB5556.NEF*
-   1:             Windows_FAT_32 NIKON D7100             15.9 GB    disk7s1
-   
    
 '''
 
@@ -160,28 +146,30 @@ def copyImageFiles(images, destinationDirs, skips, description, delete=False):
         progress += 1
         for dest, skip in zip(destinationDirs, skips):
             if name not in skip:
-                for ext in entry["extensions"]:
+                writeProtect = False;
+                for ext in entry["extensions"]:                    
                     srcpath = os.path.join(entry["srcPath"], entry["origName"] + "." + ext)
                     dstpath = os.path.join(dest, name + "." + ext)
                     sys.stdout.write("{0}%:  {1} to {2}.\r".format((progress * 100) / len(images), name, dstpath))
                     sys.stdout.flush()
+
+                    # If write protect was set on an image by the camera, it will appear to us
+                    # as the user-immutable flag.  FWIW, this flag can be seen using
+                    # "ls -lhdO".
+                    writeProtect |= os.stat(srcpath).st_flags & stat.UF_IMMUTABLE                
+                    print "{0:x} {1:s}\n".format(os.stat(srcpath).st_flags, srcpath)
+
+                    # Copy the image file.
                     shutil.copy2(srcpath, dstpath)
                 
-                # If write protect was set on an image by the camera, it will appear to us
-                # as the user-immutable flag.  Look for this, and clear it on the copy.  We'll
-                # flag the image with a Lightroom color below.  Only clear the flag on the
-                # original image if we're going to delete it.  This allows us to redo a download
-                # if necessary and get the same results, while still avoiding errors during the
-                # delete due to the immutable flag.
-                origFlags = os.stat(srcpath).st_flags
-                wp = origFlags & stat.UF_IMMUTABLE                
-                print "{0:x} {1:s}\n".format(origFlags, srcpath)
-                if wp:
-                    print srcpath + " is write-protected!"
-                    os.chflags(dstpath, origFlags & ~stat.UF_IMMUTABLE)
-                    if delete:
-                        os.chflags(srcpath, origFlags & ~stat.UF_IMMUTABLE)
-                    
+                    # If write protect was set on the source file, clear it on the destination.  We'll
+                    # treat it specially below when we create the XMP sidecar file.  If we're going
+                    # to delete the source file, also clear write protect on it.
+                    if writeProtect:
+                        os.chflags(dstpath, os.stat(dstpath).st_flags & ~stat.UF_IMMUTABLE)
+                        if delete:
+                            os.chflags(srcpath, os.stat(srcpath).st_flags & ~stat.UF_IMMUTABLE)
+
                 # Create the sidecar file.
                 sidecar = open(os.path.join(dest, name+".XMP"), "w")
                 sidecar.write("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n")
@@ -190,7 +178,7 @@ def copyImageFiles(images, destinationDirs, skips, description, delete=False):
                 sidecar.write("  <rdf:Description rdf:about=\"\"\n")
                 sidecar.write("     xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"\n")
                 sidecar.write("     xmlns:dc=\"http://purl.org/dc/elements/1.1/\"\n")
-                if wp:
+                if writeProtect:
                     sidecar.write("     xmp:Label=\"Purple\"\n")
                 sidecar.write("     >\n")
                 sidecar.write("     <dc:description>\n")
