@@ -42,7 +42,6 @@ __updated__ = '2017-11-26'
 
 DEBUG = 1
 TESTRUN = 0
-PROFILE = 0
 
 platform = "Mac"
 lightroom = "Adobe Lightroom Classic CC"
@@ -57,7 +56,7 @@ class CLIError(Exception):
     def __unicode__(self):
         return self.msg
 
-# Find potential source DCF volumes.  Return a list of (name, path) tuples.
+# Find potential source DCF volumes, returning a list of (name, path) tuples.
 def findSourceVolume():
     vollist = []
     for d in os.listdir("/Volumes"):
@@ -68,7 +67,7 @@ def findSourceVolume():
             vollist.append((d, tp))
     return vollist;
 
-# Create the destination directory and return a path to it.
+# Create the destination directory, returning a path to it.
 def createDestinationDir(destPath, name):
     d = os.path.join(destPath, name)
     
@@ -84,12 +83,13 @@ def findSourceImages(src):
     images = {}
     jpegCnt = 0
     movCnt = 0
+    nearRollover = False
 
-    # Ennumerate the image files on the source volume.
+    # Enumerate the image files on the source volume.
     for dirpath, dirs, files in os.walk(src):
         for f in files:
             
-            # Ignore files that don't look like camera image files,
+            # Ignore files that are unlikely to be camera image files,
             # including hidden files.
             if f.startswith("."):
                 continue
@@ -102,9 +102,12 @@ def findSourceImages(src):
             if extension not in ['JPG', 'NEF', 'MOV']:
                 continue
             
+            # Remember if the number part of the image name is getting near the rollover point.
+            nearRollover |= newname[-4] == '9'
+            
             # Dictionary "images" is indexed by the image name.  Its entries are themselves
-            # disctionaries, containing keys "srcNEF" and/or "srcJPG".  The contents of those
-            # entries is a sequence of the patchname followed by the filename.
+            # dictionaries, containing keys "srcNEF" and/or "srcJPG".  The contents of those
+            # entries is a sequence of the pathname followed by the filename.
             if newname in images:
                 images[newname]["extensions"].append(extension)
             else:
@@ -114,11 +117,12 @@ def findSourceImages(src):
                 jpegCnt += 1
             elif extension == 'MOV':
                 movCnt += 1
-        
     if jpegCnt > 0:
         print("WARNING:  {0} JPEG files found!".format(jpegCnt))
     if movCnt > 0:
         print("{0} video files found.".format(movCnt))
+    if nearRollover:
+        print("WARNING:  Image numbers are nearing the rollover point!")
     return images
 
 # Return a list of files already in the destination directory.
@@ -157,7 +161,6 @@ def copyImageFiles(images, destinationDirs, skips, description, delete=False):
                     # as the user-immutable flag.  FWIW, this flag can be seen using
                     # "ls -lhdO".
                     writeProtect |= os.stat(srcpath).st_flags & stat.UF_IMMUTABLE                
-                    print "{0:x} {1:s}\n".format(os.stat(srcpath).st_flags, srcpath)
 
                     # Copy the image file.
                     shutil.copy2(srcpath, dstpath)
