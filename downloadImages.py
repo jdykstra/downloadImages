@@ -298,13 +298,21 @@ USAGE
         parser.add_argument("-D", "--delete", dest="delete", action='store_true', help="Delete files from card after successful download.")
         parser.add_argument("-a", "--automate", dest="automate", action='store_true', help="Execute deleteUnderscore and Photos.")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
-        parser.add_argument("destinations", nargs='*', default=os.getcwd(), help="Destination directories for images;  Defaults to the working directory.")
+        parser.add_argument("destinations", nargs='+', help="Destination directories for images;  at least one required.")
 
         # Process arguments
         args = parser.parse_args(argv[1:])
         
         if args.verbose > 0:
             print("Verbose mode on")
+            
+        # Do sanity checks on argument values.
+        # Make sure the path to each destination directory exists.  This helps prevent a misplaced tag
+        # or description from being interpreter as yet another destination.
+        for path in args.destinations:
+            if not os.path.exists(path):
+                print "Error:  Destination path \"{0}\" doesn't exist.".format(path)
+                return 2
     
         if 'darwin' in sys.platform:
             caffeinateProcess = subprocess.Popen(('caffeinate', '-i'))
