@@ -7,7 +7,7 @@ It defines classes_and_methods
 
 @author:     John Dykstra
 
-@copyright:  2017 John Dykstra. All rights reserved.
+@copyright:  2017, 2018 John Dykstra. All rights reserved.
 
 @license:    Apache
 
@@ -35,11 +35,11 @@ from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
 
 __all__ = []
-__version__ = 1.2
+__version__ = 1.3
 __date__ = '2017-04-06'
-__updated__ = '2017-11-26'
+__updated__ = '2018-10-19'
 
-DEBUG = 1
+DEBUG = 0
 TESTRUN = 0
 
 platform = "Mac"
@@ -99,7 +99,7 @@ def findSourceImages(src):
             origName = fparts[0].upper()
             newname = origName.replace("_", "")
             extension = fparts[-1].upper()
-            if extension not in ['JPG', 'NEF', 'MOV']:
+            if extension not in ['JPG', 'NEF', 'MOV', 'MP4']:
                 continue
             
             # Remember if the number part of the image name is getting near the rollover point.
