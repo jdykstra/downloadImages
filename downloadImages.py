@@ -347,8 +347,7 @@ USAGE
             if 'darwin' in sys.platform:
                 os.system("open -a \"" + lightroom + "\" \"" + os.path.join(args.destinations[0], dirName) + "\"")
             else:
-                print [lightroom, os.path.join(args.destinations[0], dirName)]
-                subprocess.call([lightroom, os.path.join(args.destinations[0], dirName)])
+                os.system("start \"\" \"" + lightroom + "\" \"" + os.path.join(args.destinations[0], dirName) + "\"")
         return 0
     
     except KeyboardInterrupt:
