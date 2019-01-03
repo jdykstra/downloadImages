@@ -22,6 +22,7 @@ It defines classes_and_methods
 import os
 import datetime
 import io
+import platform
 import shutil
 import stat
 import subprocess
@@ -29,7 +30,8 @@ import sys
 import time
 import traceback
 
-from AppKit import NSWorkspace
+if 'darwin' in sys.platform:
+        from AppKit import NSWorkspace
 
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
@@ -37,13 +39,15 @@ from argparse import RawDescriptionHelpFormatter
 __all__ = []
 __version__ = 1.3
 __date__ = '2017-04-06'
-__updated__ = '2018-10-19'
+__updated__ = '2018-12-20'
 
 DEBUG = 0
 TESTRUN = 0
 
-platform = "Mac"
-lightroom = "Adobe Lightroom Classic CC"
+if 'darwin' in sys.platform:
+    lightroom = "Adobe Lightroom Classic CC"
+else:
+    lightroom = "C:\\Program Files\\Adobe\\Adobe Lightroom Classic CC\\Lightroom.exe"
 
 class CLIError(Exception):
     '''Generic exception to raise and log different fatal errors.'''
@@ -58,12 +62,20 @@ class CLIError(Exception):
 # Find potential source DCF volumes, returning a list of (name, path) tuples.
 def findSourceVolume():
     vollist = []
-    for d in os.listdir("/Volumes"):
-        if not os.path.isdir(os.path.join("/Volumes", d)):
-            continue
-        tp = os.path.join(os.path.join("/Volumes", d), "DCIM")
-        if os.path.isdir(tp):
-            vollist.append((d, tp))
+    if 'darwin' in sys.platform:
+        for d in os.listdir("/Volumes"):
+            if not os.path.isdir(os.path.join("/Volumes", d)):
+                continue
+            tp = os.path.join(os.path.join("/Volumes", d), "DCIM")
+            if os.path.isdir(tp):
+                vollist.append((d, tp))
+    else:
+        dl = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        drives = ['%s:' % d for d in dl if os.path.exists('%s:' % d)]
+        for d in drives:
+            tp = os.path.join(d, "DCIM")
+            if os.path.isdir(tp):
+                vollist.append((d, tp))
     return vollist;
 
 # Create the destination directory, returning a path to it.
@@ -163,7 +175,10 @@ def copyImageFiles(images, destinationDirs, skips, description, delete=False):
                     # If write protect was set on an image by the camera, it will appear to us
                     # as the user-immutable flag.  FWIW, this flag can be seen using
                     # "ls -lhdO".
-                    writeProtect |= os.stat(srcpath).st_flags & stat.UF_IMMUTABLE                
+                    if 'darwin' in sys.platform:
+                        writeProtect |= os.stat(srcpath).st_flags & stat.UF_IMMUTABLE 
+                    else:
+                        writeProtect = False               
 
                     # Copy the image file.
                     shutil.copy2(srcpath, dstpath)
@@ -244,18 +259,22 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
         shutil.rmtree(sourceVol[1])
         
     # Request the Finder to eject the source volume.
-    for attempt in range(1, 20):
-        workspace = NSWorkspace.alloc()
-        ejected = workspace.unmountAndEjectDeviceAtPath_(os.path.join("/Volumes", sourceVol[0]))
-        if ejected:
-            break
-        print "Attempting to eject {0}...".format(sourceVol[0])
-        time.sleep(1)
-    if ejected:
-        print "All images successfully downloaded and {0} ejected.".format(sourceVol[0])
+    
+    if 'darwin' in sys.platform:
+        for attempt in range(1, 20):
+            workspace = NSWorkspace.alloc()
+            ejected = workspace.unmountAndEjectDeviceAtPath_(os.path.join("/Volumes", sourceVol[0]))
+            if ejected:
+                break
+            print "Attempting to eject {0}...".format(sourceVol[0])
+            time.sleep(1)
+            if ejected:
+                print "All images successfully downloaded and {0} ejected.".format(sourceVol[0])
+            else:
+                print "ERROR - All images successfully downloaded, but could not eject {0}!".format(sourceVol[0])
     else:
-        print "ERROR - All images successfully downloaded, but could not eject {0}!".format(sourceVol[0])
-     
+        print "All images successfully downloaded."
+
     return dirName
         
 #  CLI Interface
@@ -288,6 +307,8 @@ USAGE
 ''' % (program_shortdesc, str(__date__))
 
     caffeinateProcess = None
+    if sys.platform not in ["darwin", "win32"]:
+        sys.stderr.write("Only Mac OS and Windows are supported.")
     
     try:
         # Setup argument parser
@@ -323,8 +344,11 @@ USAGE
             caffeinateProcess.terminate()
 
         if args.automate:
-            os.system("open -a \"" + lightroom + "\" \"" + os.path.join(args.destinations[0], dirName) + "\"")
-       
+            if 'darwin' in sys.platform:
+                os.system("open -a \"" + lightroom + "\" \"" + os.path.join(args.destinations[0], dirName) + "\"")
+            else:
+                print [lightroom, os.path.join(args.destinations[0], dirName)]
+                subprocess.call([lightroom, os.path.join(args.destinations[0], dirName)])
         return 0
     
     except KeyboardInterrupt:
