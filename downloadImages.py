@@ -37,9 +37,9 @@ from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
 
 __all__ = []
-__version__ = 1.3
+__version__ = 1.4
 __date__ = '2017-04-06'
-__updated__ = '2018-12-20'
+__updated__ = '2019-02-16'
 
 DEBUG = 0
 TESTRUN = 0
@@ -230,6 +230,10 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
     # Find image files on the source volume.
     images = findSourceImages(sourceVol[1])
     print("{0} image files found on {1}.".format(len(images), sourceVol[0]))
+    
+    # If we're supposed to delete the source images, make sure that we can.
+    if (delete and not os.access(sourceVol[1], os.W_OK)):
+        raise(CLIError("-D specified but \"%s\" is not writable." % (sourceVol[0])))
     
     # Handle multiple possible destinations.
     # DestinationDirs and duplicates are lists in the same order as the
