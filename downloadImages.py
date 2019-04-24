@@ -7,14 +7,14 @@ It defines classes_and_methods
 
 @author:     John Dykstra
 
-@copyright:  2017, 2018 John Dykstra. All rights reserved.
+@copyright:  2017-2019 John Dykstra. All rights reserved.
 
 @license:    Apache
 
 @contact:    jdykstra72@gmail.com
 @deffield    updated: Updated
 
-??  Todo - Caffeinate wasn't killed, probably after trying to delete a locked file.
+??  Todo - VT100 control sequences not being interpreted on Windows, and maybe Mac.
            Get info via dialog
    
 '''
@@ -37,9 +37,9 @@ from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
 
 __all__ = []
-__version__ = 1.4
+__version__ = 1.5
 __date__ = '2017-04-06'
-__updated__ = '2019-02-16'
+__updated__ = '2019-04-24'
 
 DEBUG = 0
 TESTRUN = 0
@@ -165,20 +165,20 @@ def copyImageFiles(images, destinationDirs, skips, description, delete=False):
         progress += 1
         for dest, skip in zip(destinationDirs, skips):
             if name not in skip:
-                writeProtect = False;
+                writeProtect = False
                 for ext in entry["extensions"]:                    
                     srcpath = os.path.join(entry["srcPath"], entry["origName"] + "." + ext)
                     dstpath = os.path.join(dest, name + "." + ext)
                     sys.stdout.write("{0}%:  {1} to {2}.\r".format((progress * 100) / len(images), name, dstpath))
                     sys.stdout.flush()
 
-                    # If write protect was set on an image by the camera, it will appear to us
-                    # as the user-immutable flag.  FWIW, this flag can be seen using
-                    # "ls -lhdO".
+                    # If write protect was set on an image by the camera, it will appear on
+                    # MacOS as the user-immutable flag.  FWIW, this flag can be seen using
+                    # "ls -lhdO".  On Windows, we just look for read-only.
                     if 'darwin' in sys.platform:
-                        writeProtect |= os.stat(srcpath).st_flags & stat.UF_IMMUTABLE 
+                        writeProtect = os.stat(srcpath).st_flags & stat.UF_IMMUTABLE 
                     else:
-                        writeProtect = False               
+                        writeProtect = not os.access(srcpath, os.W_OK)
 
                     # Copy the image file.
                     shutil.copy2(srcpath, dstpath)
@@ -187,9 +187,14 @@ def copyImageFiles(images, destinationDirs, skips, description, delete=False):
                     # treat it specially below when we create the XMP sidecar file.  If we're going
                     # to delete the source file, also clear write protect on it.
                     if writeProtect:
-                        os.chflags(dstpath, os.stat(dstpath).st_flags & ~stat.UF_IMMUTABLE)
-                        if delete:
-                            os.chflags(srcpath, os.stat(srcpath).st_flags & ~stat.UF_IMMUTABLE)
+                        if 'darwin' in sys.platform:
+                            os.chflags(dstpath, os.stat(dstpath).st_flags & ~stat.UF_IMMUTABLE)
+                            if delete:
+                                os.chflags(srcpath, os.stat(srcpath).st_flags & ~stat.UF_IMMUTABLE)
+                        else:
+                            os.chmod(dstpath, stat.S_IWRITE)
+                            if delete:
+                                os.chmod(srcpath, stat.S_IWRITE)
 
                 # Create the sidecar file.
                 sidecar = open(os.path.join(dest, name+".XMP"), "w")
