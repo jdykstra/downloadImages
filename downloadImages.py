@@ -45,9 +45,9 @@ DEBUG = 0
 TESTRUN = 0
 
 if 'darwin' in sys.platform:
-    lightroom = "Adobe Lightroom Classic CC"
+    lightroom = "Adobe Lightroom Classic"
 else:
-    lightroom = "C:\\Program Files\\Adobe\\Adobe Lightroom Classic CC\\Lightroom.exe"
+    lightroom = "C:\\Program Files\\Adobe\\Adobe Lightroom Classic\\Lightroom.exe"
 
 class CLIError(Exception):
     '''Generic exception to raise and log different fatal errors.'''
