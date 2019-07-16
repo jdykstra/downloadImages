@@ -44,6 +44,8 @@ __updated__ = '2019-04-24'
 DEBUG = 0
 TESTRUN = 0
 
+cleol = "\033[K"      #  Clear to end of line
+
 if 'darwin' in sys.platform:
     lightroom = "Adobe Lightroom Classic"
 else:
@@ -169,7 +171,7 @@ def copyImageFiles(images, destinationDirs, skips, description, delete=False):
                 for ext in entry["extensions"]:                    
                     srcpath = os.path.join(entry["srcPath"], entry["origName"] + "." + ext)
                     dstpath = os.path.join(dest, name + "." + ext)
-                    sys.stdout.write("{0}%:  {1} to {2}.\r".format((progress * 100) / len(images), name, dstpath))
+                    sys.stdout.write("{0}%:  {1} to {2}.{3}\r".format((progress * 100) / len(images), name, dstpath, cleol))
                     sys.stdout.flush()
 
                     # If write protect was set on an image by the camera, it will appear on
@@ -218,7 +220,7 @@ def copyImageFiles(images, destinationDirs, skips, description, delete=False):
                 sidecar.write("</x:xmpmeta>\n")
                 sidecar.close()
      
-    sys.stdout.write("\033[K")      #  Clear to end of line
+    sys.stdout.write(cleol)      #  Clear to end of line
     sys.stdout.flush()      
             
 # Programmatic API.  Returns name (not path) of destination directories.
