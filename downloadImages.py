@@ -14,7 +14,7 @@ It defines classes_and_methods
 @contact:    jdykstra72@gmail.com
 @deffield    updated: Updated
 
-??  Todo - VT100 control sequences not being interpreted on Windows, and maybe Mac.
+??  Todo - ANSI control sequences not being interpreted on Windows.
            Get info via dialog
    
 '''
@@ -29,6 +29,7 @@ import subprocess
 import sys
 import time
 import traceback
+import wx
 
 if 'darwin' in sys.platform:
         from AppKit import NSWorkspace
@@ -287,6 +288,17 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
         print "All images successfully downloaded."
 
     return dirName
+
+class InputDialog(wx.Dialog):
+    
+    def __init__(self):
+        self.tag = "Downloaded Images"      #  default tag
+        self.description = ""               #  default description
+        super(InputDialog, self).__init__()
+        
+    def InitUI(self):
+        pnl = wx.Panel(self)
+        pnl.Add(wx.TextCtrl(pnl), flag=wx.LEFT, border=5)
         
 #  CLI Interface
 def main(argv=None):
@@ -325,7 +337,7 @@ USAGE
         # Setup argument parser
         parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
         parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %(default)s]")
-        parser.add_argument("-t", "--tag", dest="tag", default="Downloaded Images", help="Tag used as destination directory name. [default: %(default)s]" )
+        parser.add_argument("-t", "--tag", dest="tag", help="Tag used as destination directory name. [default: %(default)s]" )
         parser.add_argument("-d", "--description", dest="description", help="Description saved in each photo's sidecar.")
         parser.add_argument("-D", "--delete", dest="delete", action='store_true', help="Delete files from card after successful download.")
         parser.add_argument("-a", "--automate", dest="automate", action='store_true', help="Execute deleteUnderscore and Photos.")
@@ -337,6 +349,13 @@ USAGE
         
         if args.verbose > 0:
             print("Verbose mode on")
+            
+        # If no tag or description was provided on the command line, open a dialog to request them.
+        if args.tag == None and args.description == None:
+            dialog = InputDialog()
+            dialog.MainLoop()
+            args.tag = dialog.tag
+            args.description = dialog.description
             
         # Do sanity checks on argument values.
         # Make sure the path to each destination directory exists.  This helps prevent a misplaced tag
