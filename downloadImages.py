@@ -1,4 +1,4 @@
-#!/usr/local/bin/python2.7
+#!/usr/bin/env python3
 # encoding: utf-8
 '''
 downloadImages -- Download images from a DCF volume such as an SD card.
@@ -18,7 +18,13 @@ It defines classes_and_methods
            Get info via dialog
    
 '''
+from __future__ import division
+from __future__ import print_function
 
+from builtins import zip
+from builtins import str
+from builtins import range
+from past.utils import old_div
 import os
 import datetime
 import io
@@ -171,7 +177,7 @@ def copyImageFiles(images, destinationDirs, skips, description, delete=False):
                 for ext in entry["extensions"]:                    
                     srcpath = os.path.join(entry["srcPath"], entry["origName"] + "." + ext)
                     dstpath = os.path.join(dest, name + "." + ext)
-                    sys.stdout.write("{0}%:  {1} to {2}.{3}\r".format((progress * 100) / len(images), name, dstpath, cleol))
+                    sys.stdout.write("{0}%:  {1} to {2}.{3}\r".format(old_div((progress * 100), len(images)), name, dstpath, cleol))
                     sys.stdout.flush()
 
                     # If write protect was set on an image by the camera, it will appear on
@@ -240,7 +246,7 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
     
     # If we're supposed to delete the source images, make sure that we can.
     if (delete and not os.access(sourceVol[1], os.W_OK)):
-        raise(CLIError("-D specified but \"%s\" is not writable." % (sourceVol[0])))
+        raise CLIError
     
     # Handle multiple possible destinations.
     # DestinationDirs and duplicates are lists in the same order as the
@@ -266,7 +272,7 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
      
     # Delete the source files.
     if delete:
-        print "Deleting images from {0}.\n".format(sourceVol[0])
+        print("Deleting images from {0}.\n".format(sourceVol[0]))
         shutil.rmtree(sourceVol[1])
         
     # Request the Finder to eject the source volume.
@@ -277,14 +283,14 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
             ejected = workspace.unmountAndEjectDeviceAtPath_(os.path.join("/Volumes", sourceVol[0]))
             if ejected:
                 break
-            print "Attempting to eject {0}...".format(sourceVol[0])
+            print("Attempting to eject {0}...".format(sourceVol[0]))
             time.sleep(1)
             if ejected:
-                print "All images successfully downloaded and {0} ejected.".format(sourceVol[0])
+                print("All images successfully downloaded and {0} ejected.".format(sourceVol[0]))
             else:
-                print "ERROR - All images successfully downloaded, but could not eject {0}!".format(sourceVol[0])
+                print("ERROR - All images successfully downloaded, but could not eject {0}!".format(sourceVol[0]))
     else:
-        print "All images successfully downloaded."
+        print("All images successfully downloaded.")
 
     return dirName
         
@@ -343,7 +349,7 @@ USAGE
         # or description from being interpreter as yet another destination.
         for path in args.destinations:
             if not os.path.exists(path):
-                print "Error:  Destination path \"{0}\" doesn't exist.".format(path)
+                print("Error:  Destination path \"{0}\" doesn't exist.".format(path))
                 return 2
     
         if 'darwin' in sys.platform:
@@ -362,24 +368,24 @@ USAGE
         return 0
     
     except KeyboardInterrupt:
-        print "Keyboard interrupt"
+        print("Keyboard interrupt")
         if caffeinateProcess != None:
-            print "Killing caffeinate"
+            print("Killing caffeinate")
             caffeinateProcess.terminate()
         ### handle keyboard interrupt ###
         return 2
     
-    except CLIError, e:
-        print e
+    except CLIError as e:
+        print(e)
         if caffeinateProcess != None:
             caffeinateProcess.terminate()
         return 2
     
-    except Exception, e:
-        print "Exception caught"
+    except Exception as e:
+        print("Exception caught")
         traceback.print_tb(sys.exc_info()[2])
         if caffeinateProcess != None:
-            print "Killing caffeinate"
+            print("Killing caffeinate")
             caffeinateProcess.terminate()
         if DEBUG or TESTRUN:
             raise(e)
