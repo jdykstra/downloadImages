@@ -43,14 +43,14 @@ from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
 
 __all__ = []
-__version__ = 1.5
+__version__ = 1.6
 __date__ = '2017-04-06'
-__updated__ = '2019-04-24'
+__updated__ = '2020-03-25'
 
 DEBUG = 0
 TESTRUN = 0
 
-cleol = "\033[K"      #  Clear to end of line
+cleol = "\033[K"      #  Clear to end of line ANSI escape sequence
 
 if 'darwin' in sys.platform:
     lightroom = "Adobe Lightroom Classic"
@@ -330,7 +330,7 @@ USAGE
     try:
         # Setup argument parser
         parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
-        parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %(default)s]")
+        parser.add_argument("-v", "--verbose", dest="verbose", action="count", default=0, help="set verbosity level [default: %(default)s]")
         parser.add_argument("-t", "--tag", dest="tag", default="Downloaded Images", help="Tag used as destination directory name. [default: %(default)s]" )
         parser.add_argument("-d", "--description", dest="description", help="Description saved in each photo's sidecar.")
         parser.add_argument("-D", "--delete", dest="delete", action='store_true', help="Delete files from card after successful download.")
