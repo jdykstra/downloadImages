@@ -14,7 +14,9 @@ It defines classes_and_methods
 @contact:    jdykstra72@gmail.com
 @deffield    updated: Updated
 
-??  Todo - VT100 control sequences not being interpreted on Windows, and maybe Mac.
+??  Todo - VT100 control sequences not being interpreted on Windows.
+                See https://stackoverflow.com/questions/51680709/colored-text-output-in-powershell-console-using-ansi-vt100-codes
+                and https://www.devdungeon.com/content/colorize-terminal-output-python.
            Get info via dialog
    
 '''
