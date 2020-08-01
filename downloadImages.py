@@ -45,9 +45,9 @@ from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
 
 __all__ = []
-__version__ = 1.6
+__version__ = 1.7
 __date__ = '2017-04-06'
-__updated__ = '2020-03-25'
+__updated__ = '2020-07-31'
 
 DEBUG = 0
 TESTRUN = 0
@@ -93,12 +93,11 @@ def createDestinationDir(destPath, name):
     d = os.path.join(destPath, name)
     
     # If the destination directory already exists, accept that silently.
-    if os.path.isdir(d):
-        return d
+    if not os.path.isdir(d):
+         os.makedirs(d)
     
-    os.makedirs(d)
     return d
-
+    
 # Return a dictionary describing all of the image files on the source..
 def findSourceImages(src):
     images = {}
@@ -118,28 +117,29 @@ def findSourceImages(src):
             fparts = f.split(".")
             if len(fparts) != 2:
                 continue
-            origName = fparts[0].upper()
-            newname = origName.replace("_", "")
+            imgName = fparts[0].upper()
+            cleanImgName = imgName.replace("_", "")
             extension = fparts[-1].upper()
             if extension not in ['JPG', 'NEF', 'MOV', 'MP4']:
                 continue
             
             # Remember if the number part of the image name is getting near the rollover point.
-            nearRollover |= newname[-4] == '9'
-            rolloverOccurred |= newname[-4:] == "9999"
+            nearRollover |= cleanImgName[-4] == '9'
+            rolloverOccurred |= cleanImgName[-4:] == "9999"
             
             # Dictionary "images" is indexed by the image name.  Its entries are themselves
-            # dictionaries, containing keys "srcNEF" and/or "srcJPG".  The contents of those
-            # entries is a sequence of the pathname followed by the filename.
-            if newname in images:
-                images[newname]["extensions"].append(extension)
+            # dictionaries, containing the filename, the path to that filename, and
+            # a list of the file extensions seen for that filename.
+            if cleanImgName in images:
+                images[cleanImgName]["extensions"].append(extension)
             else:
-                images[newname] = dict(extensions = [extension], srcPath = dirpath, origName = origName)
+                images[cleanImgName] = dict(extensions = [extension], srcPath = dirpath, origName = imgName)
                         
             if extension == 'JPG':
                 jpegCnt += 1
             elif extension == 'MOV':
                 movCnt += 1
+                
     if jpegCnt > 0:
         print("WARNING:  {0} JPEG files found!".format(jpegCnt))
     if movCnt > 0:
@@ -148,25 +148,29 @@ def findSourceImages(src):
         print("WARNING:  Image numbers rolled over!")
     elif nearRollover:
         print("WARNING:  Image numbers are nearing the rollover point!")
+    
     return images
 
 # Return a list of files already in the destination directory.
+# ?? Too complex.  Either set a "skip" key in the per-image dictionary, or delete the per-image dictionary from
+# ?? the images dictionary.
+# ?? Except a file might be a duplicate in one destination directory, and not another.
 def lookForDuplicates(images, dst):
     duplicates =[]
     
-    for name in iter(images):
-        for ext in images[name]["extensions"]:
-            filename = name + "." + ext
+    for cleanImgName in iter(images):
+        for ext in images[cleanImgName]["extensions"]:
+            filename = cleanImgName + "." + ext
             dstpath = os.path.join(dst, filename)
             if os.path.exists(dstpath):
-                srcpath = os.path.join(images[name]["srcPath"], images[name]["origName"] + "." + ext)
+                srcpath = os.path.join(images[cleanImgName]["srcPath"], images[cleanImgName]["origName"] + "." + ext)
                 if (os.stat(dstpath).st_size == os.stat(srcpath).st_size):
-                    duplicates.append(name)
+                    duplicates.append(cleanImgName)
     
     return duplicates
     
 
-# Copy the image files from the source to the destination and create the sidecar file.
+# Copy the image files from the source to the destination and create the XMP sidecar file.
 def copyImageFiles(images, destinationDirs, skips, description, delete=False):
 
     progress = 0
@@ -207,6 +211,9 @@ def copyImageFiles(images, destinationDirs, skips, description, delete=False):
                                 os.chmod(srcpath, stat.S_IWRITE)
 
                 # Create the sidecar file.
+                # ?? Use multi-line string constant?
+                # ?? The write protect part could be coded as:
+                # ??      writeProtect and "Purple" or "None"
                 sidecar = open(os.path.join(dest, name+".XMP"), "w")
                 sidecar.write("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n")
                 sidecar.write("<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n")
@@ -228,10 +235,10 @@ def copyImageFiles(images, destinationDirs, skips, description, delete=False):
                 sidecar.write("</x:xmpmeta>\n")
                 sidecar.close()
      
-    sys.stdout.write(cleol)      #  Clear to end of line
+    sys.stdout.write(cleol)      #  Clear screen to end of line
     sys.stdout.flush()      
             
-# Programmatic API.  Returns name (not path) of destination directories.
+# Programmatic API to this module.  Returns name (not path) of destination directories.
 def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
        
     # Find the source volume.  We can only handle one.
@@ -270,6 +277,9 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
             print("%d image files already exist in \"%s\". " % (len(dups), destDir))    
         
     # Copy the image files from the source to the destinations and create the sidecar files.
+    # ?? Having matching tuples of destination directories and duplicate lists seems 
+    # ?? unnecessarily complex.  Why not call copyImageFiles() once for each destination
+    # ?? directory?
     copyImageFiles(images, destinationDirs, duplicates, description, delete)
      
     # Delete the source files.
@@ -278,7 +288,8 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
         shutil.rmtree(sourceVol[1])
         
     # Request the Finder to eject the source volume.
-    
+    # ?? Consider deleting the error-handling code in the future, if more experience 
+    # ?? shows that the underlying MacOS bug is fixed.
     if 'darwin' in sys.platform:
         for attempt in range(1, 20):
             workspace = NSWorkspace.alloc()
@@ -299,8 +310,7 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
 #  CLI Interface
 def main(argv=None):
 
-    '''Command line options.'''
-
+    # Command line options.
     if argv is None:
         argv = sys.argv
     else:
