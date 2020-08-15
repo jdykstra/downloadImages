@@ -49,8 +49,12 @@ __version__ = 1.7
 __date__ = '2017-04-06'
 __updated__ = '2020-07-31'
 
-DEBUG = 0
+DEBUG = 1
 TESTRUN = 0
+
+if DEBUG:
+    import pdb, traceback
+    
 
 cleol = "\033[K"      #  Clear to end of line ANSI escape sequence
 
@@ -378,7 +382,7 @@ USAGE
             else:
                 os.system("start \"\" \"" + lightroom + "\" \"" + os.path.join(args.destinations[0], dirName) + "\"")
         return 0
-    
+        
     except KeyboardInterrupt:
         print("Keyboard interrupt")
         if caffeinateProcess != None:
@@ -391,19 +395,21 @@ USAGE
         print(e)
         if caffeinateProcess != None:
             caffeinateProcess.terminate()
-        return 2
-    
+        indent = len(program_name) * " "
+        sys.stderr.write(program_name + ": " + repr(e) + "\n")
+        sys.stderr.write(indent + "  for help use --help\n")    
     except Exception as e:
+        if DEBUG:
+            extrype, value, tb = sys.exc_info()
+            traceback.print_exc()
+            pdb.post_mortem(tb)
         print("Exception caught")
         traceback.print_tb(sys.exc_info()[2])
         if caffeinateProcess != None:
             print("Killing caffeinate")
             caffeinateProcess.terminate()
         if DEBUG or TESTRUN:
-            raise(e)
-        indent = len(program_name) * " "
-        sys.stderr.write(program_name + ": " + repr(e) + "\n")
-        sys.stderr.write(indent + "  for help use --help\n")
+            raise(e)       
         return 2
 
 if __name__ == "__main__":
