@@ -38,16 +38,14 @@ import sys
 import time
 import traceback
 
-if 'darwin' in sys.platform:
-        from AppKit import NSWorkspace
-
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
+#  from __builtin__ import True
 
 __all__ = []
 __version__ = 1.7
 __date__ = '2017-04-06'
-__updated__ = '2020-07-31'
+__updated__ = '2020-09-01'
 
 DEBUG = 1
 TESTRUN = 0
@@ -291,21 +289,15 @@ def doDownload(destinationPaths, tag, description, delete=False, verbose=False):
         print("Deleting images from {0}.\n".format(sourceVol[0]))
         shutil.rmtree(sourceVol[1])
         
-    # Request the Finder to eject the source volume.
-    # ?? Consider deleting the error-handling code in the future, if more experience 
-    # ?? shows that the underlying MacOS bug is fixed.
+    # On Mac OS, unmount the source volume.  We currently assume that Windows disks are configured to
+    # flush to hardware after every write.
     if 'darwin' in sys.platform:
-        for attempt in range(1, 20):
-            workspace = NSWorkspace.alloc()
-            ejected = workspace.unmountAndEjectDeviceAtPath_(os.path.join("/Volumes", sourceVol[0]))
-            if ejected:
-                break
-            print("Attempting to eject {0}...".format(sourceVol[0]))
-            time.sleep(1)
-            if ejected:
-                print("All images successfully downloaded and {0} ejected.".format(sourceVol[0]))
-            else:
-                print("ERROR - All images successfully downloaded, but could not eject {0}!".format(sourceVol[0]))
+        subprocess.run(["diskutil", "unmount", os.path.join("/Volumes", sourceVol[0])], check=True)
+        ejected = True
+        if ejected:
+            print("All images successfully downloaded and {0} ejected.".format(sourceVol[0]))
+        else:
+             print("ERROR - All images successfully downloaded, but could not eject {0}!".format(sourceVol[0]))
     else:
         print("All images successfully downloaded.")
 
