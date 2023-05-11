@@ -7,7 +7,7 @@ It defines classes_and_methods
 
 @author:     John Dykstra
 
-@copyright:  2017-2019 John Dykstra. All rights reserved.
+@copyright:  2017-2023 John Dykstra. All rights reserved.
 
 @license:    Apache
 
@@ -26,7 +26,6 @@ from __future__ import print_function
 from builtins import zip
 from builtins import str
 from builtins import range
-from past.utils import old_div
 import os
 import datetime
 import io
@@ -45,7 +44,7 @@ from argparse import RawDescriptionHelpFormatter
 __all__ = []
 __version__ = 1.7
 __date__ = '2017-04-06'
-__updated__ = '2020-09-01'
+__updated__ = '2023-05-11'
 
 DEBUG = 1
 TESTRUN = 0
@@ -185,7 +184,7 @@ def copyImageFiles(images, destinationDirs, skips, description, delete=False):
                 for ext in entry["extensions"]:                    
                     srcpath = os.path.join(entry["srcPath"], entry["origName"] + "." + ext)
                     dstpath = os.path.join(dest, name + "." + ext)
-                    sys.stdout.write("{0}%:  {1} to {2}.{3}\r".format(old_div((progress * 100), len(images)), name, dstpath, cleol))
+                    sys.stdout.write("{0}%:  {1} to {2}.{3}\r".format(int((progress * 100)/len(images)), name, dstpath, cleol))
                     sys.stdout.flush()
 
                     # If write protect was set on an image by the camera, it will appear on
