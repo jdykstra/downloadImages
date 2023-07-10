@@ -215,7 +215,7 @@ def copyImageFiles(images, destinationDirs, skips, description, delete=False):
                 # ?? Use multi-line string constant?
                 # ?? The write protect part could be coded as:
                 # ??      writeProtect and "Purple" or "None"
-                sidecar = open(os.path.join(dest, name+".XMP"), "w")
+                sidecar = open(os.path.join(dest, name+".xmp"), "w")
                 sidecar.write("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n")
                 sidecar.write("<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n")
                 sidecar.write("\n")
