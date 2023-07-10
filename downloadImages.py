@@ -243,8 +243,6 @@ def copyImageFiles(images, destinationDirs, skips, description, downloadLockedOn
                 # ?? Use multi-line string constant?
                 # ?? The write protect part could be coded as:
                 # ??      fileLocked and "Purple" or "None"
-                if image.fileLocked:
-                    print("{0} is {1}immutable".format(imageName, "" if image.fileLocked else "not "))
                 sidecar = open(os.path.join(dest, image.dstFilename + ".xmp"), "w")
                 sidecar.write("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n")
                 sidecar.write("<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n")
