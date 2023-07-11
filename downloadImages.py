@@ -10,11 +10,6 @@ downloadImages -- Download images from a DCF volume such as an SD card.
 @license:    MIT
 
 @contact:    jdykstra72@gmail.com
-
-??  Todo - VT100 control sequences not being interpreted on Windows.
-                See https://stackoverflow.com/questions/51680709/colored-text-output-in-powershell-console-using-ansi-vt100-codes
-                and https://www.devdungeon.com/content/colorize-terminal-output-python.
-           Get info via dialog
    
 '''
 
@@ -193,6 +188,7 @@ def findSourceImages(src, downloadLockedOnly):
 # ?? Too complex.  Either set a "skip" key in the per-image dictionary, or delete the per-image dictionary from
 # ?? the images dictionary.
 # ?? Except a file might be a duplicate in one destination directory, and not another.
+# ?? Issue #3:  This doesn't properly handle source files with multiple extensions which are only partially copied.
 def lookForDuplicates(images, dst):
     duplicates =[]
     
@@ -215,29 +211,31 @@ def copyImageFiles(images, destinationDirs, skips, description, downloadLockedOn
         image = images[imageName]
         progress += 1
         for dest, skip in zip(destinationDirs, skips):
-            if imageName not in skip:
-                for ext in image.extensions:                    
-                    srcFullpath = os.path.join(image.srcPath, image.srcFilename + "." + ext)
-                    dstFullPath = os.path.join(dest, imageName + "." + ext)
-                    sys.stdout.write("{0}%:  {1} to {2}.{3}\r".format(int((progress * 100)/len(images)), imageName, dstFullPath, cleol))
-                    sys.stdout.flush()
+            for ext in image.extensions:                    
+                srcFullpath = os.path.join(image.srcPath, image.srcFilename + "." + ext)
+                dstFullPath = os.path.join(dest, imageName + "." + ext)
+                sys.stdout.write("{0}%:  {1} to {2}.{3}\r".format(int((progress * 100)/len(images)), imageName, dstFullPath, cleol))
+                sys.stdout.flush()
 
-                    # Copy the image file.  If we're only copying locked files, skip unlocked files.
+                # Copy the image file unless it's a duplicate.  If we're only copying locked files, skip unlocked files.
+                if imageName not in skip:
                     if not downloadLockedOnly or image.fileLocked:
                         shutil.copy2(srcFullpath, dstFullPath)
-                
-                    # If write protect was set on the source file, clear it on the destination.  We'll
-                    # treat it specially below when we create the XMP sidecar file.  If we're going
-                    # to delete the source file, also clear write protect on it.
-                    if image.fileLocked:
-                        if 'darwin' in sys.platform:
-                            os.chflags(dstFullPath, os.stat(dstFullPath).st_flags & ~stat.UF_IMMUTABLE)
-                            if delete:
-                                os.chflags(srcFullpath, os.stat(srcFullpath).st_flags & ~stat.UF_IMMUTABLE)
-                        else:
-                            os.chmod(dstFullPath, stat.S_IWRITE)
-                            if delete:
-                                os.chmod(srcFullpath, stat.S_IWRITE)
+            
+                # If write protect was set on the source file, clear it on the destination.  We'll
+                # treat it specially below when we create the XMP sidecar file.  If we're going
+                # to delete the source file, also clear write protect on it.
+                # ?? This is slightly unsafe, since we'll loose the locked indication on the source
+                # ?? if we crash before deleting it.
+                if image.fileLocked:
+                    if 'darwin' in sys.platform:
+                        os.chflags(dstFullPath, os.stat(dstFullPath).st_flags & ~stat.UF_IMMUTABLE)
+                        if delete:
+                            os.chflags(srcFullpath, os.stat(srcFullpath).st_flags & ~stat.UF_IMMUTABLE)
+                    else:
+                        os.chmod(dstFullPath, stat.S_IWRITE)
+                        if delete:
+                            os.chmod(srcFullpath, stat.S_IWRITE)
 
                 # Create the sidecar file.
                 # ?? Use multi-line string constant?
@@ -350,11 +348,9 @@ def main(argv=None):
     program_license = '''%s
 
   Created by John Dykstra on %s.
-  Copyright 2017 John Dykstra. All rights reserved.
-
-  Licensed under the Apache License 2.0
-  http://www.apache.org/licenses/LICENSE-2.0
-
+  Copyright 2017-2023 John Dykstra. All rights reserved.
+  
+  Licensed under the MIT License.
   Distributed on an "AS IS" basis without warranties
   or conditions of any kind, either express or implied.
 
