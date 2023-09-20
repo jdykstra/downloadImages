@@ -40,7 +40,7 @@ __version__ = 1.8
 __date__ = '2017-04-06'
 __updated__ = '2023-07-09'
 
-DEBUG = 1
+DEBUG = False
 TESTRUN = 0
 
 if DEBUG:
@@ -157,7 +157,7 @@ def findSourceImages(src, downloadLockedOnly):
             
             # Dictionary "images" is indexed by the image name, forced to uppercase.  
             if imageName in images:
-                images[imageName].addExtension(extension)
+                images[imageName].addFileExtension(extension)
             else:
                 images[imageName] = Image(srcFilename, dirpath, extension, fileLocked, dstFilename)
                         
