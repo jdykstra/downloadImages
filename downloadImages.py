@@ -36,9 +36,9 @@ from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
 
 __all__ = []
-__version__ = 1.8
+__version__ = 1.9
 __date__ = '2017-04-06'
-__updated__ = '2023-07-09'
+__updated__ = '2023-09-22'
 
 DEBUG = False
 TESTRUN = 0
@@ -105,6 +105,9 @@ class Image:
     def addFileExtension(self, extension):
         self.extensions.append(extension)
 
+    def containsFileExtension(self, extension):
+        return extension in self.extensions
+
     def __str__(self):
         return "ImageFile:  filename = {0}, srcPath = {1}, destPath = {2}, extensions = {3}, skip = {4}, duplicate = {5}, xmp = {6}, xmpPath = {7}, xmpName = {8}, xmpDestPath = {9}, xmpDestName = {10}, xmpDestFullPath = {11}".format(self.name, self.srcPath, self.destPath, self.extensions, self.skip, self.duplicate, self.xmp, self.xmpPath, self.xmpName, self.xmpDestPath, self.xmpDestName, self.xmpDestFullPath)
         
@@ -155,15 +158,19 @@ def findSourceImages(src, downloadLockedOnly):
             if downloadLockedOnly and not fileLocked:
                 continue
             
-            # Dictionary "images" is indexed by the image name, forced to uppercase.  
-            if imageName in images:
-                images[imageName].addFileExtension(extension)
-            else:
+            # Have we already seen a file for this image (with a different extension)?
+            try:
+                image = images[imageName]
+                if image.containsFileExtension(extension):
+                    raise CLIError("Source contains more than one " + srcFilename + "." + extension)
+                
+                image.addFileExtension(extension)
+            except KeyError:
                 images[imageName] = Image(srcFilename, dirpath, extension, fileLocked, dstFilename)
                         
             if extension.upper() == 'JPG':
                 jpegCnt += 1
-            elif extension.upper() == 'MOV':
+            elif extension.upper() in ['MOV', 'MP4']:
                 movCnt += 1
                 
             if fileLocked:
