@@ -36,9 +36,9 @@ from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
 
 __all__ = []
-__version__ = 1.9
+__version__ = "1.10"
 __date__ = '2017-04-06'
-__updated__ = '2023-09-22'
+__updated__ = '2023-12-26'
 
 DEBUG = False
 TESTRUN = 0
@@ -318,13 +318,18 @@ def doDownload(destinationPaths, tag, description, downloadLockedOnly=False, del
     # On the other hand, this enables us to write all the destinations while each source
     # file is still open and in cache.
     copyImageFiles(images, destinationDirs, duplicates, description, downloadLockedOnly, delete)
+
+    # Flush Mac OS disk caches to guard against external disks being disconnected, power failures, etc.
+    # We assume that Windows disks are configured to flush to hardware after every write.
+    if  'darwin' in sys.platform:
+        subprocess.run(["sync"], check=True)
      
     # Delete the source files.
     if delete:
         print("Deleting images from {0}.\n".format(sourceVol[0]))
         shutil.rmtree(sourceVol[1])
         
-    # On Mac OS, unmount the source volume.  We currently assume that Windows disks are configured to
+    # On Mac OS, unmount the source volume.  We assume that Windows disks are configured to
     # flush to hardware after every write.
     if 'darwin' in sys.platform:
         subprocess.run(["diskutil", "unmount", os.path.join("/Volumes", sourceVol[0])], check=True)
@@ -364,6 +369,7 @@ def main(argv=None):
 USAGE
 ''' % (program_shortdesc, str(__date__))
 
+    print("downloadImages v%s (%s)" % (__version__, __updated__))
     caffeinateProcess = None
     if sys.platform not in ["darwin", "win32"]:
         sys.stderr.write("Only Mac OS and Windows are supported.")
