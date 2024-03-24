@@ -23,6 +23,7 @@ from builtins import str
 from builtins import range
 import os
 import datetime
+import getpass
 import io
 import platform
 import shutil
@@ -67,21 +68,21 @@ class CLIError(Exception):
 # Find potential source DCF volumes, returning a list of (name, path) tuples.
 def findSourceVolume():
     vollist = []
-    if 'darwin' in sys.platform:
-        for d in os.listdir("/Volumes"):
-            if not os.path.isdir(os.path.join("/Volumes", d)):
-                continue
-            tp = os.path.join(os.path.join("/Volumes", d), "DCIM")
-            if os.path.isdir(tp):
-                vollist.append((d, tp))
-    else:
-        dl = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-        drives = ['%s:' % d for d in dl if os.path.exists('%s:' % d)]
+    if 'win32' in sys.platform:
+        drives = ['%s:' % d for d in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' if os.path.exists('%s:' % d)]
         for d in drives:
             tp = os.path.join(d, "DCIM")
             if os.path.isdir(tp):
                 vollist.append((d, tp))
-    return vollist;
+    else:
+        root = "/Volumes" if 'darwin' in sys.platform else os.path.join("/media", getpass.getuser())
+        for d in os.listdir(root):
+            if not os.path.isdir(os.path.join(root, d)):
+                continue
+            tp = os.path.join(os.path.join(root, d), "DCIM")
+            if os.path.isdir(tp):
+                vollist.append((d, tp))
+    return vollist
 
 # Create the destination directory, returning a path to it.
 def createDestinationDir(destPath, name):
@@ -332,7 +333,7 @@ def doDownload(destinationPaths, tag, description, downloadLockedOnly=False, del
     # On Mac OS, unmount the source volume.  We assume that Windows disks are configured to
     # flush to hardware after every write.
     if 'darwin' in sys.platform:
-        subprocess.run(["diskutil", "unmount", os.path.join("/Volumes", sourceVol[0])], check=True)
+        subprocess.run(["diskutil", "unmount", os.path.join(root, sourceVol[0])], check=True)
         ejected = True
         if ejected:
             print("All images successfully downloaded and {0} ejected.".format(sourceVol[0]))
@@ -371,8 +372,8 @@ USAGE
 
     print("downloadImages v%s (%s)" % (__version__, __updated__))
     caffeinateProcess = None
-    if sys.platform not in ["darwin", "win32"]:
-        sys.stderr.write("Only Mac OS and Windows are supported.")
+    if sys.platform not in ["darwin", "win32", "linux"]:
+        sys.stderr.write("Only Mac OS, Windows and Linux are supported.")
     
     try:
         # Setup argument parser
