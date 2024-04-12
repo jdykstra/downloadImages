@@ -62,3 +62,7 @@ Pipfile.lock
 # Common virtualenvs
 .venv/
 venv/
+
+# Ignore test disk images
+*.dmg
+
