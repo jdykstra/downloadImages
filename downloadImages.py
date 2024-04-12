@@ -36,11 +36,11 @@ from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
 
 __all__ = []
-__version__ = "1.10"
+__version__ = "1.11"
 __date__ = '2017-04-06'
-__updated__ = '2023-12-26'
+__updated__ = '2024-4-12'
 
-DEBUG = False
+DEBUG = True
 TESTRUN = 0
 
 if DEBUG:
@@ -49,9 +49,10 @@ if DEBUG:
 jpegExtensions = ['JPG']
 imageExtensions = jpegExtensions + ['NEF']
 videoExtensions = ['MOV', 'MP4']
-    
 
 cleol = "\033[K"      #  Clear to end of line ANSI escape sequence
+
+totalToTransfer = 0
 
 if 'darwin' in sys.platform:
     lightroom = "Adobe Lightroom Classic"
@@ -99,11 +100,12 @@ def createDestinationDir(destPath, name):
 
 # Class representing a single image.  That image may have more than one associated image file, such as a JPEG and a RAW file.
 class Image:
-    def __init__(self, srcFilename, srcPath, extension, fileLocked, dstFilename):
+    def __init__(self, srcFilename, srcPath, extension, fileLocked, size, dstFilename):
         self.srcFilename = srcFilename
         self.srcPath = srcPath
         self.extensions = [extension]
         self.fileLocked = fileLocked
+        self.size = size
         self.dstFilename = dstFilename
     
     def addFileExtension(self, extension):
@@ -118,6 +120,7 @@ class Image:
     def __repr__(self):
         return self.__str__()
     
+
 # Return a dictionary describing all of the image files on the source, indexed by the image name.
 def findSourceImages(src, downloadLockedOnly):
     images = {}
@@ -126,6 +129,7 @@ def findSourceImages(src, downloadLockedOnly):
     lockedFileCnt = 0
     nearRollover = False
     rolloverOccurred = False
+    global totalToTransfer
     
     # Enumerate the image files on the source volume.
     for dirpath, _, files in os.walk(src):
@@ -149,8 +153,9 @@ def findSourceImages(src, downloadLockedOnly):
             # MacOS as the user-immutable flag.  FWIW, this flag can be seen using
             # "ls -lhdO".  On Windows, we just look for read-only.
             srcFullPath = os.path.join(dirpath, srcFilename + "." + extension)
+            statInfo = os.stat(srcFullPath)
             if 'darwin' in sys.platform:
-                fileLocked = os.stat(srcFullPath).st_flags & stat.UF_IMMUTABLE
+                fileLocked = statInfo.st_flags & stat.UF_IMMUTABLE
             else:
                 fileLocked = not os.access(srcFullPath, os.W_OK)
 
@@ -161,6 +166,8 @@ def findSourceImages(src, downloadLockedOnly):
             # If we're downloading only locked images, ignore all the rest.
             if downloadLockedOnly and not fileLocked:
                 continue
+
+            size = statInfo.st_size
             
             # Have we already seen a file for this image (with a different extension)?
             try:
@@ -169,9 +176,12 @@ def findSourceImages(src, downloadLockedOnly):
                     raise CLIError("Source contains more than one " + srcFilename + "." + extension)
                 
                 image.addFileExtension(extension)
+                image.size += size
             except KeyError:
-                images[imageName] = Image(srcFilename, dirpath, extension, fileLocked, dstFilename)
-                        
+                images[imageName] = Image(srcFilename, dirpath, extension, fileLocked, size, dstFilename)
+            
+            totalToTransfer += size
+            
             if extension.upper() in jpegExtensions:
                 jpegCnt += 1
             elif extension.upper() in videoExtensions:
@@ -184,6 +194,7 @@ def findSourceImages(src, downloadLockedOnly):
         print("WARNING:  {0} JPEG files found!".format(jpegCnt))
     if movCnt > 0:
         print("{0} video files found.".format(movCnt))
+    print(f"Total size of files to transfer:  {totalToTransfer} bytes.")
     if lockedFileCnt > 0:
         print("{0} files are locked.".format(lockedFileCnt))         
     elif downloadLockedOnly:
@@ -213,25 +224,35 @@ def lookForDuplicates(images, dst):
     
     return duplicates
     
+# Copy a file while updating progress on the screen.
+def copy_with_progress(src_file, dst_file, imageName, alreadyCopied):
+    with open(src_file, 'rb') as src, open(dst_file, 'wb') as dst:
+        copied = 0
+        while True:
+            buf = src.read(1024 * 1024)  # Read file in chunks of 1MB
+            if not buf:
+                break
+            dst.write(buf)
+            copied += len(buf)
+            sys.stdout.write("{0}%:  {1} to {2}.{3}\r".format(int((alreadyCopied + copied) * 100 / totalToTransfer), imageName, dst_file, cleol))
+            sys.stdout.flush()
 
 # Copy the image files from the source to the destination and create a XMP sidecar file for each.
 def copyImageFiles(images, destinationDirs, skips, description, downloadLockedOnly=False, delete=False):
+    global totalToTransfer
 
-    progress = 0
+    alreadyCopied = 0
     for imageName in iter(images):
         image = images[imageName]
-        progress += 1
         for dest, skip in zip(destinationDirs, skips):
             for ext in image.extensions:                    
                 srcFullpath = os.path.join(image.srcPath, image.srcFilename + "." + ext)
                 dstFullPath = os.path.join(dest, imageName + "." + ext)
-                sys.stdout.write("{0}%:  {1} to {2}.{3}\r".format(int((progress * 100)/len(images)), imageName, dstFullPath, cleol))
-                sys.stdout.flush()
 
                 # Copy the image file unless it's a duplicate.  If we're only copying locked files, skip unlocked files.
                 if imageName not in skip:
                     if not downloadLockedOnly or image.fileLocked:
-                        shutil.copy2(srcFullpath, dstFullPath)
+                        copy_with_progress(srcFullpath, dstFullPath, imageName, alreadyCopied)
             
                 # If write protect was set on the source file, clear it on the destination.  We'll
                 # treat it specially below when we create the XMP sidecar file.  If we're going
@@ -272,6 +293,7 @@ def copyImageFiles(images, destinationDirs, skips, description, downloadLockedOn
                 sidecar.write("</rdf:RDF>\n")
                 sidecar.write("</x:xmpmeta>\n")
                 sidecar.close()
+        alreadyCopied += image.size
      
     sys.stdout.write(cleol)      #  Clear screen to end of line
     sys.stdout.flush()      
