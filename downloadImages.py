@@ -45,6 +45,10 @@ TESTRUN = 0
 
 if DEBUG:
     import pdb, traceback
+
+jpegExtensions = ['JPG']
+imageExtensions = jpegExtensions + ['NEF']
+videoExtensions = ['MOV', 'MP4']
     
 
 cleol = "\033[K"      #  Clear to end of line ANSI escape sequence
@@ -138,7 +142,7 @@ def findSourceImages(src, downloadLockedOnly):
             extension = fparts[-1]
             dstFilename = srcFilename.replace("_", "")  # Remove underscores used by Nikon
             imageName = dstFilename.upper()  
-            if extension.upper() not in ['JPG', 'NEF', 'MOV', 'MP4']:
+            if extension.upper() not in imageExtensions + videoExtensions:
                 continue
             
             # If write protect was set on an image by the camera, it will appear on
@@ -168,9 +172,9 @@ def findSourceImages(src, downloadLockedOnly):
             except KeyError:
                 images[imageName] = Image(srcFilename, dirpath, extension, fileLocked, dstFilename)
                         
-            if extension.upper() == 'JPG':
+            if extension.upper() in jpegExtensions:
                 jpegCnt += 1
-            elif extension.upper() in ['MOV', 'MP4']:
+            elif extension.upper() in videoExtensions:
                 movCnt += 1
                 
             if fileLocked:
