@@ -18,29 +18,26 @@ downloadImages -- Download images from a DCF volume such as an SD card.
     the destination directory, but we don't allow multiple destination files that differ only in case.
 '''
 
+__all__ = ['doDownload']
+__version__ = "1.11"
+__title__ = "downloadImages"
+__author__ = "John Dykstra"
+__copyright__ = "2017-2023"
+
 from builtins import zip
 from builtins import str
-from builtins import range
 import os
 import datetime
-import io
-import platform
 import shutil
 import stat
 import subprocess
 import sys
-import time
 import traceback
 
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
 
-__all__ = []
-__version__ = "1.11"
-__date__ = '2017-04-06'
-__updated__ = '2024-4-12'
-
-DEBUG = True
+DEBUG = False
 TESTRUN = 0
 
 if DEBUG:
