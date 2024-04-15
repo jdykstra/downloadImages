@@ -377,22 +377,20 @@ def main(argv=None):
         
     program_name = os.path.basename(sys.argv[0])
     program_version = "v%s" % __version__
-    program_build_date = str(__updated__)
-    program_version_message = '%%(prog)s %s (%s)' % (program_version, program_build_date)
+    program_version_message = '%%(prog)s %s' % (program_version)
     program_shortdesc = __import__('__main__').__doc__.split("\n")[1]
     program_license = '''%s
 
-  Created by John Dykstra on %s.
-  Copyright 2017-2023 John Dykstra. All rights reserved.
+  Copyright 2017-2024 John Dykstra. All rights reserved.
   
   Licensed under the MIT License.
   Distributed on an "AS IS" basis without warranties
   or conditions of any kind, either express or implied.
 
 USAGE
-''' % (program_shortdesc, str(__date__))
+''' % (program_shortdesc)
 
-    print("downloadImages v%s (%s)" % (__version__, __updated__))
+    print("downloadImages v%s" % (__version__))
     caffeinateProcess = None
     if sys.platform not in ["darwin", "win32"]:
         sys.stderr.write("Only Mac OS and Windows are supported.")
