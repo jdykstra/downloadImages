@@ -222,17 +222,29 @@ def lookForDuplicates(images, dst):
     return duplicates
     
 # Copy a file while updating progress on the screen.
+# We originally used shutil.copy2(), which takes advantage of OS-specific optimizations.
+# Tests of this version on Mac OS with an external flash drive showed equivalent performance.
 def copy_with_progress(src_file, dst_file, imageName, alreadyCopied):
-    with open(src_file, 'rb') as src, open(dst_file, 'wb') as dst:
-        copied = 0
-        while True:
-            buf = src.read(1024 * 1024)  # Read file in chunks of 1MB
-            if not buf:
-                break
-            dst.write(buf)
-            copied += len(buf)
-            sys.stdout.write("{0}%:  {1} to {2}.{3}\r".format(int((alreadyCopied + copied) * 100 / totalToTransfer), imageName, dst_file, cleol))
-            sys.stdout.flush()
+    try:
+        with open(src_file, 'rb') as src, open(dst_file, 'wb') as dst:
+            copied = 0
+            while True:
+                buf = src.read(1024 * 1024)  # Read file in chunks of 1MB
+                if not buf:
+                    break
+                dst.write(buf)
+                copied += len(buf)
+                sys.stdout.write("{0}%:  {1} to {2}.{3}\r".format(int((alreadyCopied + copied) * 100 / totalToTransfer), imageName, dst_file, cleol))
+                sys.stdout.flush()
+        shutil.copystat(src_file, dst_file)
+    except Exception as e:  
+        print(f"Deleting {dst_file} due to error.")
+        try:
+            os.remove(dst_file)
+        except Exception:
+            pass  # Ignore exceptions from os.remove()
+        raise e
+    
 
 # Copy the image files from the source to the destination and create a XMP sidecar file for each.
 def copyImageFiles(images, destinationDirs, skips, description, downloadLockedOnly=False, delete=False):
