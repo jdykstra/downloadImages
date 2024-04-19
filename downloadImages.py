@@ -39,7 +39,7 @@ from argparse import RawDescriptionHelpFormatter
 
 from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
 
-DEBUG = False
+DEBUG = True
 if DEBUG:
     import pdb, traceback
 
@@ -283,7 +283,7 @@ def copyImageFiles(images, destinationDirs, skips, description, downloadLockedOn
     global totalToTransfer
 
     alreadyCopied = 0
-    with ProgressTracker(totalToTransfer) as tracker:
+    with ProgressTracker(len(destinationDirs) * totalToTransfer) as tracker:
         for imageName in iter(images):
             image = images[imageName]
             for dest, skip in zip(destinationDirs, skips):
@@ -337,7 +337,7 @@ def copyImageFiles(images, destinationDirs, skips, description, downloadLockedOn
                     sidecar.close()
             alreadyCopied += image.size
         
-    sys.stdout.write(cleol)      #  Clear screen to end of line
+    sys.stdout.write("\n")      # Needed after progress bar output
     sys.stdout.flush()      
 
 
