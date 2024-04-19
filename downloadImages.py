@@ -5,7 +5,7 @@ downloadImages -- Download images from a DCF volume such as an SD card.
 
 @author:     John Dykstra
 
-@copyright:  2017-2023 John Dykstra. All rights reserved.
+@copyright:  2017-2024 John Dykstra. All rights reserved.
 
 @license:    MIT
 
@@ -19,7 +19,7 @@ downloadImages -- Download images from a DCF volume such as an SD card.
 '''
 
 __all__ = ['doDownload']
-__version__ = "1.11"
+__version__ = "1.12"
 __title__ = "downloadImages"
 __author__ = "John Dykstra"
 __copyright__ = "2017-2023"
@@ -37,9 +37,9 @@ import traceback
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
 
-DEBUG = False
-TESTRUN = 0
+from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
 
+DEBUG = False
 if DEBUG:
     import pdb, traceback
 
@@ -56,6 +56,7 @@ if 'darwin' in sys.platform:
 else:
     lightroom = "C:\\Program Files\\Adobe\\Adobe Lightroom Classic\\Lightroom.exe"
 
+
 class CLIError(Exception):
     '''Generic exception to raise and log different fatal errors.'''
     def __init__(self, msg):
@@ -65,6 +66,7 @@ class CLIError(Exception):
         return self.msg
     def __unicode__(self):
         return self.msg
+
 
 # Find potential source DCF volumes, returning a list of (name, path) tuples.
 def findSourceVolume():
@@ -85,6 +87,7 @@ def findSourceVolume():
                 vollist.append((d, tp))
     return vollist;
 
+
 # Create the destination directory, returning a path to it.
 def createDestinationDir(destPath, name):
     d = os.path.join(destPath, name)
@@ -94,6 +97,7 @@ def createDestinationDir(destPath, name):
          os.makedirs(d)
     
     return d
+
 
 # Class representing a single image.  That image may have more than one associated image file, such as a JPEG and a RAW file.
 class Image:
@@ -203,6 +207,7 @@ def findSourceImages(src, downloadLockedOnly):
     
     return images
 
+
 # Return a list of files already in a destination directory.
 # ?? Too complex.  Either set a "skip" key in the per-image dictionary, or delete the per-image dictionary from
 # ?? the images dictionary.
@@ -220,22 +225,49 @@ def lookForDuplicates(images, dst):
                     duplicates.append(imageName)
     
     return duplicates
+
+
+# Subclass AbsoluteETA to display only the time part of the ETA.
+# ?? This was suggested by Copilot, but it doesn't work.  The ETA is still displayed as a full date.
+class CustomAbsoluteETA(AbsoluteETA):
+    def update(self, pbar):
+        if pbar.currval == 0: 
+            return 'ETA: --:--'
+        elapsed = pbar.seconds_elapsed
+        eta = datetime.datetime.now() + datetime.timedelta(seconds=(pbar.total - pbar.currval) / pbar.avg_time_per_item)
+        return 'ETA: %s' % eta.strftime('%H:%M')  # Change the format here
+
+
+class ProgressTracker():
+
+    def __init__(self, totalToTransfer):
+        self.alreadyCopied = 0
+        self.bar = ProgressBar(max_value=totalToTransfer, widgets=[AdaptiveTransferSpeed(), " ", GranularBar(), " ", \
+                        CustomAbsoluteETA(format='ETA: %(eta)s', format_finished='ETA: %(eta)s', format_not_started='ETA: --:--')])
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def update(self, copied):
+        self.alreadyCopied += copied
+        self.bar.update(self.alreadyCopied)
     
+
 # Copy a file while updating progress on the screen.
 # We originally used shutil.copy2(), which takes advantage of OS-specific optimizations.
 # Tests of this version on Mac OS with an external flash drive showed equivalent performance.
-def copy_with_progress(src_file, dst_file, imageName, alreadyCopied):
+def copy_with_progress(src_file, dst_file, imageName, tracker):
     try:
         with open(src_file, 'rb') as src, open(dst_file, 'wb') as dst:
-            copied = 0
             while True:
                 buf = src.read(1024 * 1024)  # Read file in chunks of 1MB
                 if not buf:
                     break
                 dst.write(buf)
-                copied += len(buf)
-                sys.stdout.write("{0}%:  {1} to {2}.{3}\r".format(int((alreadyCopied + copied) * 100 / totalToTransfer), imageName, dst_file, cleol))
-                sys.stdout.flush()
+                tracker.update(len(buf))
         shutil.copystat(src_file, dst_file)
     except Exception as e:  
         print(f"Deleting {dst_file} due to error.")
@@ -251,62 +283,64 @@ def copyImageFiles(images, destinationDirs, skips, description, downloadLockedOn
     global totalToTransfer
 
     alreadyCopied = 0
-    for imageName in iter(images):
-        image = images[imageName]
-        for dest, skip in zip(destinationDirs, skips):
-            for ext in image.extensions:                    
-                srcFullpath = os.path.join(image.srcPath, image.srcFilename + "." + ext)
-                dstFullPath = os.path.join(dest, imageName + "." + ext)
+    with ProgressTracker(totalToTransfer) as tracker:
+        for imageName in iter(images):
+            image = images[imageName]
+            for dest, skip in zip(destinationDirs, skips):
+                for ext in image.extensions:                    
+                    srcFullpath = os.path.join(image.srcPath, image.srcFilename + "." + ext)
+                    dstFullPath = os.path.join(dest, imageName + "." + ext)
 
-                # Copy the image file unless it's a duplicate.  If we're only copying locked files, skip unlocked files.
-                if imageName not in skip:
-                    if not downloadLockedOnly or image.fileLocked:
-                        copy_with_progress(srcFullpath, dstFullPath, imageName, alreadyCopied)
-            
-                # If write protect was set on the source file, clear it on the destination.  We'll
-                # treat it specially below when we create the XMP sidecar file.  If we're going
-                # to delete the source file, also clear write protect on it.
-                # ?? This is slightly unsafe, since we'll loose the locked indication on the source
-                # ?? if we crash before deleting it.
-                if image.fileLocked:
-                    if 'darwin' in sys.platform:
-                        os.chflags(dstFullPath, os.stat(dstFullPath).st_flags & ~stat.UF_IMMUTABLE)
-                        if delete:
-                            os.chflags(srcFullpath, os.stat(srcFullpath).st_flags & ~stat.UF_IMMUTABLE)
-                    else:
-                        os.chmod(dstFullPath, stat.S_IWRITE)
-                        if delete:
-                            os.chmod(srcFullpath, stat.S_IWRITE)
+                    # Copy the image file unless it's a duplicate.  If we're only copying locked files, skip unlocked files.
+                    if imageName not in skip:
+                        if not downloadLockedOnly or image.fileLocked:
+                            copy_with_progress(srcFullpath, dstFullPath, imageName, tracker)
+                
+                    # If write protect was set on the source file, clear it on the destination.  We'll
+                    # treat it specially below when we create the XMP sidecar file.  If we're going
+                    # to delete the source file, also clear write protect on it.
+                    # ?? This is slightly unsafe, since we'll loose the locked indication on the source
+                    # ?? if we crash before deleting it.
+                    if image.fileLocked:
+                        if 'darwin' in sys.platform:
+                            os.chflags(dstFullPath, os.stat(dstFullPath).st_flags & ~stat.UF_IMMUTABLE)
+                            if delete:
+                                os.chflags(srcFullpath, os.stat(srcFullpath).st_flags & ~stat.UF_IMMUTABLE)
+                        else:
+                            os.chmod(dstFullPath, stat.S_IWRITE)
+                            if delete:
+                                os.chmod(srcFullpath, stat.S_IWRITE)
 
-                # Create the sidecar file.
-                # ?? Use multi-line string constant?
-                # ?? The write protect part could be coded as:
-                # ??      fileLocked and "Purple" or "None"
-                sidecar = open(os.path.join(dest, image.dstFilename + ".xmp"), "w")
-                sidecar.write("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n")
-                sidecar.write("<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n")
-                sidecar.write("\n")
-                sidecar.write("  <rdf:Description rdf:about=\"\"\n")
-                sidecar.write("     xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"\n")
-                sidecar.write("     xmlns:dc=\"http://purl.org/dc/elements/1.1/\"\n")
-                if image.fileLocked:
-                    sidecar.write("     xmp:Label=\"Purple\"\n")
-                sidecar.write("     >\n")
-                sidecar.write("     <dc:description>\n")
-                sidecar.write("      <rdf:Alt>\n")
-                sidecar.write("        <rdf:li xml:lang=\"x-default\">{0}&#xA;</rdf:li>\n".format(description))
-                sidecar.write("      </rdf:Alt>\n")
-                sidecar.write("    </dc:description>\n")
-                sidecar.write("  </rdf:Description>\n")
-                sidecar.write("\n")
-                sidecar.write("</rdf:RDF>\n")
-                sidecar.write("</x:xmpmeta>\n")
-                sidecar.close()
-        alreadyCopied += image.size
-     
+                    # Create the sidecar file.
+                    # ?? Use multi-line string constant?
+                    # ?? The write protect part could be coded as:
+                    # ??      fileLocked and "Purple" or "None"
+                    sidecar = open(os.path.join(dest, image.dstFilename + ".xmp"), "w")
+                    sidecar.write("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n")
+                    sidecar.write("<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n")
+                    sidecar.write("\n")
+                    sidecar.write("  <rdf:Description rdf:about=\"\"\n")
+                    sidecar.write("     xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"\n")
+                    sidecar.write("     xmlns:dc=\"http://purl.org/dc/elements/1.1/\"\n")
+                    if image.fileLocked:
+                        sidecar.write("     xmp:Label=\"Purple\"\n")
+                    sidecar.write("     >\n")
+                    sidecar.write("     <dc:description>\n")
+                    sidecar.write("      <rdf:Alt>\n")
+                    sidecar.write("        <rdf:li xml:lang=\"x-default\">{0}&#xA;</rdf:li>\n".format(description))
+                    sidecar.write("      </rdf:Alt>\n")
+                    sidecar.write("    </dc:description>\n")
+                    sidecar.write("  </rdf:Description>\n")
+                    sidecar.write("\n")
+                    sidecar.write("</rdf:RDF>\n")
+                    sidecar.write("</x:xmpmeta>\n")
+                    sidecar.close()
+            alreadyCopied += image.size
+        
     sys.stdout.write(cleol)      #  Clear screen to end of line
     sys.stdout.flush()      
-            
+
+
 # Programmatic API to this module.  Returns name (not path) of destination directories.
 def doDownload(destinationPaths, tag, description, downloadLockedOnly=False, delete=False, verbose=False):
        
@@ -377,7 +411,8 @@ def doDownload(destinationPaths, tag, description, downloadLockedOnly=False, del
         print("All images successfully downloaded.")
 
     return dirName
-        
+
+
 #  CLI Interface
 def main(argv=None):
 
@@ -476,7 +511,7 @@ USAGE
         if caffeinateProcess != None:
             print("Killing caffeinate")
             caffeinateProcess.terminate()
-        if DEBUG or TESTRUN:
+        if DEBUG:
             raise(e)       
         return 2
 
