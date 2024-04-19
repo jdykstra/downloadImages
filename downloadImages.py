@@ -195,7 +195,7 @@ def findSourceImages(src, downloadLockedOnly):
         print("WARNING:  {0} JPEG files found!".format(jpegCnt))
     if movCnt > 0:
         print("{0} video files found.".format(movCnt))
-    print(f"Total size of files to transfer:  {totalToTransfer} bytes.")
+    print(f"Total size of files to transfer: {totalToTransfer / 1_073_741_824:.2f} GB.")
     if lockedFileCnt > 0:
         print("{0} files are locked.".format(lockedFileCnt))         
     elif downloadLockedOnly:
