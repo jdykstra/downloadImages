@@ -63,6 +63,6 @@ Pipfile.lock
 .venv/
 venv/
 
-# Ignore test disk images
+# Ignore test data
 *.dmg
-
+test_destination_directory/
