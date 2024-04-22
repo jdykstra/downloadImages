@@ -350,7 +350,7 @@ def doDownload(destinationPaths, tag, description, downloadLockedOnly=False, del
     
     # If we're supposed to delete the source images, make sure that we can.
     if (delete and not os.access(sourceVol[1], os.W_OK)):
-        raise CLIError
+        raise CLIError("Source volume is read-only and delete option is set.")
     
     # Look for existing duplicates on the destination volumes.
     # DestinationDirs and duplicates are lists in the same order as the
