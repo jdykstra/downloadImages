@@ -39,7 +39,7 @@ from argparse import RawDescriptionHelpFormatter
 
 from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
 
-DEBUG = True
+DEBUG = False
 if DEBUG:
     import pdb, traceback
 
@@ -227,23 +227,12 @@ def lookForDuplicates(images, dst):
     return duplicates
 
 
-# Subclass AbsoluteETA to display only the time part of the ETA.
-# ?? This was suggested by Copilot, but it doesn't work.  The ETA is still displayed as a full date.
-class CustomAbsoluteETA(AbsoluteETA):
-    def update(self, pbar):
-        if pbar.currval == 0: 
-            return 'ETA: --:--'
-        elapsed = pbar.seconds_elapsed
-        eta = datetime.datetime.now() + datetime.timedelta(seconds=(pbar.total - pbar.currval) / pbar.avg_time_per_item)
-        return 'ETA: %s' % eta.strftime('%H:%M')  # Change the format here
-
-
 class ProgressTracker():
 
     def __init__(self, totalToTransfer):
         self.alreadyCopied = 0
         self.bar = ProgressBar(max_value=totalToTransfer, widgets=[AdaptiveTransferSpeed(), " ", GranularBar(), " ", \
-                        CustomAbsoluteETA(format='ETA: %(eta)s', format_finished='ETA: %(eta)s', format_not_started='ETA: --:--')])
+                        AbsoluteETA(format='ETA: %(eta)s', format_finished='ETA: %(eta)s', format_not_started='ETA: --:--')])
 
     def __enter__(self):
         return self
