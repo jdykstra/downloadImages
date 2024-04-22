@@ -495,11 +495,12 @@ USAGE
         sys.stderr.write(indent + "  for help use --help\n")    
     except Exception as e:
         if DEBUG:
-            extrype, value, tb = sys.exc_info()
-            traceback.print_exc()
-            pdb.post_mortem(tb)
+        extrype, value, tb = sys.exc_info()
+        traceback.print_exc()
         print("Exception caught")
         traceback.print_tb(sys.exc_info()[2])
+        if DEBUG:
+            pdb.post_mortem(tb)
         if caffeinateProcess != None:
             print("Killing caffeinate")
             caffeinateProcess.terminate()
