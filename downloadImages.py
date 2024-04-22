@@ -494,7 +494,6 @@ USAGE
         sys.stderr.write(program_name + ": " + repr(e) + "\n")
         sys.stderr.write(indent + "  for help use --help\n")    
     except Exception as e:
-        if DEBUG:
         extrype, value, tb = sys.exc_info()
         traceback.print_exc()
         print("Exception caught")
