@@ -49,7 +49,7 @@ videoExtensions = ['MOV', 'MP4']
 
 cleol = "\033[K"      #  Clear to end of line ANSI escape sequence
 
-totalBytesFromSource = 0
+totalToTransfer = 0
 
 if 'darwin' in sys.platform:
     lightroom = "Adobe Lightroom Classic"
@@ -130,7 +130,7 @@ def findSourceImages(src, downloadLockedOnly):
     lockedFileCnt = 0
     nearRollover = False
     rolloverOccurred = False
-    global totalBytesFromSource
+    global totalToTransfer
     
     # Enumerate the image files on the source volume.
     for dirpath, _, files in os.walk(src):
@@ -181,7 +181,7 @@ def findSourceImages(src, downloadLockedOnly):
             except KeyError:
                 images[imageName] = Image(srcFilename, dirpath, extension, fileLocked, size, dstFilename)
             
-            totalBytesFromSource += size
+            totalToTransfer += size
             
             if extension.upper() in jpegExtensions:
                 jpegCnt += 1
@@ -195,7 +195,7 @@ def findSourceImages(src, downloadLockedOnly):
         print("WARNING:  {0} JPEG files found!".format(jpegCnt))
     if movCnt > 0:
         print("{0} video files found.".format(movCnt))
-    print(f"Total size of files to transfer: {totalBytesFromSource / 1_073_741_824:.2f} GB.")
+    print(f"Total size of files to transfer: {totalToTransfer / 1_073_741_824:.2f} GB.")
     if lockedFileCnt > 0:
         print("{0} files are locked.".format(lockedFileCnt))         
     elif downloadLockedOnly:
@@ -242,12 +242,9 @@ class CustomAbsoluteETA(AbsoluteETA):
         eta = str(data['eta'])
         return 'ETA: %s' % eta[-8:]
 
-# The progressbar module can throw exceptions if AbsoluteETA is used with large max_values, because
-# DateTime can't represent dates far in the future.  Side-step these by scaling the value ourselves.
 class ProgressTracker():
 
-    def __init__(self, totalBytesToTransfer):
-        self.totalBytesToTransfer = totalBytesToTransfer
+    def __init__(self, totalToTransfer):
         self.alreadyCopied = 0
         self.bar = ProgressBar(max_value=1.0, widgets=[AdaptiveTransferSpeed(), " ", GranularBar(), " ", \
                         CustomAbsoluteETA(format='ETA: %(eta)s', format_finished='ETA: %(ow)s', format_not_started='ETA: --:--')])
@@ -260,7 +257,7 @@ class ProgressTracker():
 
     def update(self, copied):
         self.alreadyCopied += copied
-        self.bar.update(self.alreadyCopied/self.totalBytesToTransfer)
+        self.bar.update(self.alreadyCopied)
     
 
 # Copy a file while updating progress on the screen.
@@ -287,10 +284,10 @@ def copy_with_progress(src_file, dst_file, imageName, tracker):
 
 # Copy the image files from the source to the destination and create a XMP sidecar file for each.
 def copyImageFiles(images, destinationDirs, skips, description, downloadLockedOnly=False, delete=False):
-    global totalBytesFromSource
+    global totalToTransfer
 
     alreadyCopied = 0
-    with ProgressTracker(len(destinationDirs) * totalBytesFromSource) as tracker:
+    with ProgressTracker(len(destinationDirs) * totalToTransfer) as tracker:
         for imageName in iter(images):
             image = images[imageName]
             for dest, skip in zip(destinationDirs, skips):
