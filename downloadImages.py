@@ -246,7 +246,7 @@ class ProgressTracker():
 
     def __init__(self, totalToTransfer):
         self.alreadyCopied = 0
-        self.bar = ProgressBar(max_value=1.0, widgets=[AdaptiveTransferSpeed(), " ", GranularBar(), " ", \
+        self.bar = ProgressBar(max_value=totalToTransfer, widgets=[AdaptiveTransferSpeed(), " ", GranularBar(), " ", \
                         CustomAbsoluteETA(format='ETA: %(eta)s', format_finished='ETA: %(ow)s', format_not_started='ETA: --:--')])
 
     def __enter__(self):
