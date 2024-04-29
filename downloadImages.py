@@ -226,6 +226,21 @@ def lookForDuplicates(images, dst):
     
     return duplicates
 
+from progressbar.widgets import Data
+from progressbar.bar import ProgressBarMixinBase, types
+
+# Tweak the AbsoluteETA widget to only show the time part of the time and date.
+class CustomAbsoluteETA(AbsoluteETA):
+
+    def __call__(
+        self,
+        progress: ProgressBarMixinBase,
+        data: Data,
+        format: types.Optional[str] = None,
+    ) -> str:
+        eta = super().__call__(progress, data, format)
+        eta = str(data['eta'])
+        return 'ETA: %s' % eta[-8:]
 
 # The progressbar module can throw exceptions if AbsoluteETA is used with large max_values, because
 # DateTime can't represent dates far in the future.  Side-step these by scaling the value ourselves.
@@ -235,7 +250,7 @@ class ProgressTracker():
         self.totalBytesToTransfer = totalBytesToTransfer
         self.alreadyCopied = 0
         self.bar = ProgressBar(max_value=1.0, widgets=[AdaptiveTransferSpeed(), " ", GranularBar(), " ", \
-                        AbsoluteETA(format='ETA: %(eta)s', format_finished='ETA: %(eta)s', format_not_started='ETA: --:--')])
+                        CustomAbsoluteETA(format='ETA: %(eta)s', format_finished='ETA: %(ow)s', format_not_started='ETA: --:--')])
 
     def __enter__(self):
         return self
