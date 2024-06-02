@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "MacOS Test",
+            "type": "python",
+            "request": "launch",
+            "program": "/Volumes/nobackup-cs/downloadImages/downloadImages.py",
+            "console": "integratedTerminal",
+            "justMyCode": "false",
+            "args": [  
+                "-t",
+                "test",
+                "/Volumes/nobackup-cs/downloadImages/test_destination_directory/Image Edit",
+                "/Volumes/nobackup-cs/downloadImages/test_destination_directory/Image Backup"
+            ]
+        },
+        {
+            "name": "Windows Test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "R:\\downloadImages\\downloadImages.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["-t", "test", "H:\\Image Edit"]
+        }
+
+    ]
+}
