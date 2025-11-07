@@ -39,6 +39,9 @@ from argparse import RawDescriptionHelpFormatter
 
 from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
 
+from python_get_resolve import GetResolve
+
+
 DEBUG = False
 if DEBUG:
     import pdb, traceback
@@ -316,30 +319,31 @@ def copyImageFiles(images, destinationDirs, skips, description, downloadLockedOn
                             if delete:
                                 os.chmod(srcFullpath, stat.S_IWRITE)
 
-                    # Create the sidecar file.
+                    # Create the sidecar file for stills only.
                     # ?? Use multi-line string constant?
                     # ?? The write protect part could be coded as:
                     # ??      fileLocked and "Purple" or "None"
-                    sidecar = open(os.path.join(dest, image.dstFilename + ".xmp"), "w")
-                    sidecar.write("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n")
-                    sidecar.write("<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n")
-                    sidecar.write("\n")
-                    sidecar.write("  <rdf:Description rdf:about=\"\"\n")
-                    sidecar.write("     xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"\n")
-                    sidecar.write("     xmlns:dc=\"http://purl.org/dc/elements/1.1/\"\n")
-                    if image.fileLocked:
-                        sidecar.write("     xmp:Label=\"Purple\"\n")
-                    sidecar.write("     >\n")
-                    sidecar.write("     <dc:description>\n")
-                    sidecar.write("      <rdf:Alt>\n")
-                    sidecar.write("        <rdf:li xml:lang=\"x-default\">{0}&#xA;</rdf:li>\n".format(description))
-                    sidecar.write("      </rdf:Alt>\n")
-                    sidecar.write("    </dc:description>\n")
-                    sidecar.write("  </rdf:Description>\n")
-                    sidecar.write("\n")
-                    sidecar.write("</rdf:RDF>\n")
-                    sidecar.write("</x:xmpmeta>\n")
-                    sidecar.close()
+                    if ext.upper() in imageExtensions:
+                        sidecar = open(os.path.join(dest, image.dstFilename + ".xmp"), "w")
+                        sidecar.write("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n")
+                        sidecar.write("<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n")
+                        sidecar.write("\n")
+                        sidecar.write("  <rdf:Description rdf:about=\"\"\n")
+                        sidecar.write("     xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"\n")
+                        sidecar.write("     xmlns:dc=\"http://purl.org/dc/elements/1.1/\"\n")
+                        if image.fileLocked:
+                            sidecar.write("     xmp:Label=\"Purple\"\n")
+                        sidecar.write("     >\n")
+                        sidecar.write("     <dc:description>\n")
+                        sidecar.write("      <rdf:Alt>\n")
+                        sidecar.write("        <rdf:li xml:lang=\"x-default\">{0}&#xA;</rdf:li>\n".format(description))
+                        sidecar.write("      </rdf:Alt>\n")
+                        sidecar.write("    </dc:description>\n")
+                        sidecar.write("  </rdf:Description>\n")
+                        sidecar.write("\n")
+                        sidecar.write("</rdf:RDF>\n")
+                        sidecar.write("</x:xmpmeta>\n")
+                        sidecar.close()
             alreadyCopied += image.size
         
     sys.stdout.write("\n")      # Needed after progress bar output
@@ -455,7 +459,8 @@ USAGE
         parser.add_argument("-d", "--description", dest="description", help="Description saved in each photo's sidecar.")
         parser.add_argument("-L", "--locked-only", dest="downloadLockedOnly", action='store_true', help="Only download locked files.")
         parser.add_argument("-D", "--delete", dest="delete", action='store_true', help="Delete files from card after successful download.")
-        parser.add_argument("-a", "--automate", dest="automate", action='store_true', help="Execute deleteUnderscore and Photos.")
+        parser.add_argument("-a", "--automate", dest="automate", action='store_true', help="Import all images into Lightroom.")
+        parser.add_argument("-r", "--resolve", dest="automateResolve", action='store_true', help="Import all motion clips into DaVinci Resolve.")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
         parser.add_argument("destinations", nargs='+', help="Destination directories for images;  at least one required.")
 
@@ -484,11 +489,20 @@ USAGE
         if caffeinateProcess != None:
             caffeinateProcess.terminate()
 
+        # Launch Lightroom to ingest all image files.  This will run asynchronously.
         if args.automate:
             if 'darwin' in sys.platform:
                 os.system("open -a \"" + lightroom + "\" \"" + os.path.join(args.destinations[0], dirName) + "\"")
             else:
                 os.system("start \"\" \"" + lightroom + "\" \"" + os.path.join(args.destinations[0], dirName) + "\"")
+
+        # Launch DaVinci Resolve to ingest all motion clips.  This will run asynchronously.
+        if args.automateResolve:
+            resolve = GetResolve()
+            project = resolve.GetProjectManager().GetCurrentProject()
+            mediaPool = project.GetMediaPool()
+            mediaPool.ImportMediaFiles(os.path.join(args.destinations[0], dirName))
+
         return 0
         
     except KeyboardInterrupt:
