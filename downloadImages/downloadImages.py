@@ -261,7 +261,8 @@ class ProgressTracker():
     
 
 # Copy a file while updating progress on the screen.
-# We originally used shutil.copy2(), which takes advantage of OS-specific optimizations.
+# We originally used shutil.copy2(), which takes advantage of OS-specific optimizations,
+# but doesn't provide progress feedback.
 # Tests of this version on Mac OS with an external flash drive showed equivalent performance.
 def copy_with_progress(src_file, dst_file, imageName, tracker):
     try:
