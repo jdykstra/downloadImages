@@ -39,7 +39,7 @@ from argparse import RawDescriptionHelpFormatter
 
 from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
 
-from python_get_resolve import GetResolve
+from resolve_integration import ingestMotionClips
 
 
 DEBUG = False
@@ -498,11 +498,13 @@ USAGE
 
         # Launch DaVinci Resolve to ingest all motion clips.  This will run asynchronously.
         if args.automateResolve:
-            resolve = GetResolve()
-            project = resolve.GetProjectManager().GetCurrentProject()
-            mediaPool = project.GetMediaPool()
-            mediaPool.ImportMediaFiles(os.path.join(args.destinations[0], dirName))
-
+            today = datetime.date.today()
+            dirName = str(today.month) + "-" + str(today.day) + " " + args.tag
+            dayStamp = str(today.month) + "-" + str(today.day)
+            if not ingestMotionClips(args.tag, dayStamp, args.description, dirName):
+                print("Error:  Could not ingress motion files to Resolve.")
+                return 1
+        
         return 0
         
     except KeyboardInterrupt:
