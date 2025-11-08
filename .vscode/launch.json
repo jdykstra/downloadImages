@@ -23,6 +23,22 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": ["-t", "test", "H:\\Image Edit"]
+        },
+        {
+            "name": "Resolve Integration Test",
+            "type": "python",
+            "request": "launch",
+            "program": "/Volumes/nobackup-cs/downloadImages/downloadImages.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "-r",
+                "-t",
+                "testproj",
+                "-d",
+                "Test project.",
+                "/Users/jwd/Image Edit/"
+            ]
         }
 
     ]
