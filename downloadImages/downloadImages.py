@@ -501,7 +501,8 @@ USAGE
             today = datetime.date.today()
             dirName = str(today.month) + "-" + str(today.day) + " " + args.tag
             dayStamp = str(today.month) + "-" + str(today.day)
-            if not ingestMotionClips(args.tag, dayStamp, args.description, dirName):
+            fullPath = os.path.join(args.destinations[0], dirName)
+            if not ingestMotionClips(args.tag, dayStamp, args.description, fullPath):
                 print("Error:  Could not ingress motion files to Resolve.")
                 return 1
         

@@ -63,7 +63,7 @@ def find_or_create_project(resolve, tag: str):
             projects = []
         for pname in projects:
             try:
-                if tag is pname:
+                if tag == pname:
                     return projectManager.GetCurrentProject()
             except Exception:
                 continue
@@ -130,7 +130,7 @@ def find_or_create_project(resolve, tag: str):
     return new_project
 
 
-def ingestMotionClips(tag, dayStamp, description, directory):
+def ingestMotionClips(tag, dayStamp, description, path):
     
     resolve = launchResolve()
     if not resolve:
@@ -146,10 +146,17 @@ def ingestMotionClips(tag, dayStamp, description, directory):
         return False
     
     try:
-        result = mediaPool.ImportMediaFiles(directory)
-        if not result:
-            print(f"Failed to import media files from directory: {directory}")
+        mediaStorage = resolve.GetMediaStorage()
+        if not mediaStorage:
+            print(f"Failed to get media storage from Resolve")
+            return False
+        
+        clips = mediaStorage.AddItemListToMediaPool([path])
+        if not clips:
+            print(f"Failed to import media files from directory: {path}")
             return False
     except Exception as e:
         print(f"Exception while importing media files: {e}")
         return False
+    
+    return True
