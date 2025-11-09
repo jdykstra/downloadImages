@@ -159,4 +159,37 @@ def ingestMotionClips(tag, dayStamp, description, path):
         print(f"Exception while importing media files: {e}")
         return False
     
+    # Create or get bin/folder named after dayStamp
+    try:
+        rootFolder = mediaPool.GetRootFolder()
+        if not rootFolder:
+            print("Failed to get root folder from media pool")
+            return False
+        
+        # Check if folder already exists
+        targetFolder = None
+        subFolders = rootFolder.GetSubFolderList()
+        for folder in subFolders:
+            if folder.GetName() == dayStamp:
+                targetFolder = folder
+                break
+        
+        # Create folder if it doesn't exist
+        if not targetFolder:
+            targetFolder = mediaPool.AddSubFolder(rootFolder, dayStamp)
+            if not targetFolder:
+                print(f"Failed to create folder '{dayStamp}'")
+                return False
+        
+        # Move imported clips to the target folder
+        if clips:
+            success = mediaPool.MoveClips(clips, targetFolder)
+            if not success:
+                print(f"Failed to move clips to folder '{dayStamp}'")
+                return False
+    
+    except Exception as e:
+        print(f"Exception while organizing clips into folder: {e}")
+        return False
+    
     return True
