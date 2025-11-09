@@ -136,7 +136,7 @@ def _find_or_create_project(resolve, tag: str):
     return new_project
 
 
-def _ensure_timeline_exists(project, timeline_name):
+def _ensure_timeline_exists(mediaPool, project, timeline_name):
     """
     Check if a timeline with the given name exists in the project.
     If not, create a new timeline with that name.
@@ -151,7 +151,7 @@ def _ensure_timeline_exists(project, timeline_name):
                 return timeline
         
         # Timeline not found, create it
-        new_timeline = project.AddTimeline(timeline_name)
+        new_timeline = mediaPool.CreateEmptyTimeline(timeline_name)
         return new_timeline
     except Exception as e:
         print(f"Error ensuring timeline '{timeline_name}' exists: {e}")
@@ -212,30 +212,28 @@ def ingestMotionClips(tag, dayStamp, description, path):
                 return False
         
         # Move imported clips to the target folder
-        if clips:
-            success = mediaPool.MoveClips(clips, targetFolder)
-            if not success:
-                print(f"Failed to move clips to folder '{dayStamp}'")
-                return False
+        success = mediaPool.MoveClips(clips, targetFolder)
+        if not success:
+            print(f"Failed to move clips to folder '{dayStamp}'")
+            return False
     
     except Exception as e:
         print(f"Exception while organizing clips into folder: {e}")
         return False
     
     # Ensure a timeline exists for this day
-    timeline = _ensure_timeline_exists(project, dayStamp)
+    timeline = _ensure_timeline_exists(mediaPool, project, dayStamp)
     if not timeline:
         print(f"Failed to ensure timeline '{dayStamp}' exists")
         return False
     
-    # Append the imported clips to the timeline
+    # Sort by name
+    clips = sorted(clips, key = lambda clip : clip.GetClipProperty("File Name"))
+
+    # Append the sorted clips to the timeline
     try:
-        project.SetCurrentTimeline(timeline)
-        if clips:
-            success = timeline.AppendToTrack(1, clips)  # Append to video track 1
-            if not success:
-                print(f"Failed to append clips to timeline '{dayStamp}'")
-                return False
+        for clip in clips:
+            mediaPool.AppendToTimeline(clip)
     except Exception as e:
         print(f"Exception while appending clips to timeline: {e}")
         return False
