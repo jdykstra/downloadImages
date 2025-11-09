@@ -8,6 +8,8 @@ import subprocess
 
 from python_get_resolve import GetResolve
 
+""" Project preset used.  """
+INGRESS_PROJECT_PRESET="JWD"
 
 def launchResolve():
     """
@@ -119,6 +121,10 @@ def find_or_create_project(resolve, tag: str):
     if not new_project:
         print(f"CreateProject returned falsy value for '{tag}'")
         return None
+
+    if not new_project.SetPreset(INGRESS_PROJECT_PRESET):
+        print(f"Could not set project to '{INGRESS_PROJECT_PRESET}'")
+        return None  
 
     # Save project and return
     try:
