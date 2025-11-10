@@ -39,7 +39,8 @@ from argparse import RawDescriptionHelpFormatter
 
 from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
 
-from apppaths import LIGHTROOM_APP
+from .apppaths import LIGHTROOM_APP
+from .resolve_integration import ingestMotionClips
 
 
 DEBUG = False

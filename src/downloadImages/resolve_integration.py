@@ -7,7 +7,7 @@ import time
 import subprocess
 
 from .python_get_resolve import GetResolve
-from apppaths import RESOLVE_APP_NAME, RESOLVE_EXE_PATH
+from .apppaths import RESOLVE_APP_NAME, RESOLVE_EXE_PATH
 
 """ Project preset used.  """
 INGRESS_PROJECT_PRESET="JWD"
@@ -123,7 +123,7 @@ def _find_or_create_project(resolve, tag: str):
         return None
 
     if not new_project.SetPreset(INGRESS_PROJECT_PRESET):
-        print(f"Could not set project to '{INGRESS_PROJECT_PRESET}'")
+        print(f"Could not set project to preset '{INGRESS_PROJECT_PRESET}'")
         return None  
 
     # Save project and return
