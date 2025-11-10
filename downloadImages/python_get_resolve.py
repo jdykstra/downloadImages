@@ -2,7 +2,8 @@
 
 """
 This file serves to return a DaVinci Resolve object.  It was copied from the
-official Blackmagic Design DaVinci Resolve install.
+official Blackmagic Design DaVinci Resolve install, but I silenced the complaint if
+the DaVinciResolveScript module could not be found via the PYTHONPATH environment variable.
 """
 
 import sys
@@ -39,7 +40,7 @@ def GetResolve():
             expectedPath = "/opt/resolve/Developer/Scripting/Modules/"
 
         # check if the default path has it...
-        print("Unable to find module DaVinciResolveScript from $PYTHONPATH - trying default locations")
+        ###  print("Unable to find module DaVinciResolveScript from $PYTHONPATH - trying default locations")
         try:
             load_source('DaVinciResolveScript', expectedPath + "DaVinciResolveScript.py")
             import DaVinciResolveScript as bmd
