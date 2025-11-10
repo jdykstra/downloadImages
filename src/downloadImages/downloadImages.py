@@ -19,10 +19,10 @@ downloadImages -- Download images from a DCF volume such as an SD card.
 '''
 
 __all__ = ['doDownload']
-__version__ = "1.14"
+__version__ = "1.12"
 __title__ = "downloadImages"
 __author__ = "John Dykstra"
-__copyright__ = "2017-2025"
+__copyright__ = "2017-2023"
 
 from builtins import zip
 from builtins import str
@@ -39,7 +39,7 @@ from argparse import RawDescriptionHelpFormatter
 
 from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
 
-from resolve_integration import ingestMotionClips
+from .resolve_integration import ingestMotionClips
 
 
 DEBUG = False
@@ -434,7 +434,7 @@ def main(argv=None):
     program_name = os.path.basename(sys.argv[0])
     program_version = "v%s" % __version__
     program_version_message = '%%(prog)s %s' % (program_version)
-    program_shortdesc = __import__('__main__').__doc__.split("\n")[1]
+    program_shortdesc = __doc__.split("\n")[1]
     program_license = '''%s
 
   Copyright 2017-2024 John Dykstra. All rights reserved.

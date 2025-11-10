@@ -6,7 +6,7 @@ import os
 import time
 import subprocess
 
-from python_get_resolve import GetResolve
+from .python_get_resolve import GetResolve
 
 """ Project preset used.  """
 INGRESS_PROJECT_PRESET="JWD"

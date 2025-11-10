@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "downloadImages"
+version = "1.14.0"
+description = "Command-line tool for downloading images and videos from camera flash."
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "John Dykstra", email = "johndykstra1@gmail.com" }
+]
+
+dependencies = [
+    "progressbar2"
+]
+
+[project.scripts]
+downloadImages = "downloadImages.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/jdykstra/downloadImages"
+BugTracker = "https://github.com/jdykstra/downloadImages/issues"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
