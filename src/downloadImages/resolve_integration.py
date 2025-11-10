@@ -7,6 +7,7 @@ import time
 import subprocess
 
 from .python_get_resolve import GetResolve
+from apppaths import RESOLVE_APP_NAME, RESOLVE_EXE_PATH
 
 """ Project preset used.  """
 INGRESS_PROJECT_PRESET="JWD"
@@ -25,15 +26,14 @@ def _launchResolve():
     if 'darwin' in sys.platform:
         # macOS
         try:
-            subprocess.Popen(['open', '-a', 'DaVinci Resolve'])
+            subprocess.Popen(['open', '-a', RESOLVE_APP_NAME])
         except Exception as e:
             print(f"Error launching DaVinci Resolve on macOS: {e}")
             return False
     else:
         # Windows
-        resolve_path = "C:\\Program Files\\Blackmagic Design\\DaVinci Resolve\\Resolve.exe"
         try:
-            subprocess.Popen([resolve_path])
+            subprocess.Popen([RESOLVE_EXE_PATH])
         except Exception as e:
             print(f"Error launching DaVinci Resolve on Windows: {e}")
             return False

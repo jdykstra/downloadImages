@@ -39,7 +39,7 @@ from argparse import RawDescriptionHelpFormatter
 
 from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
 
-from .resolve_integration import ingestMotionClips
+from apppaths import LIGHTROOM_APP
 
 
 DEBUG = False
@@ -53,11 +53,6 @@ videoExtensions = ['MOV', 'MP4']
 cleol = "\033[K"      #  Clear to end of line ANSI escape sequence
 
 totalToTransfer = 0
-
-if 'darwin' in sys.platform:
-    lightroom = "Adobe Lightroom Classic"
-else:
-    lightroom = "C:\\Program Files\\Adobe\\Adobe Lightroom Classic\\Lightroom.exe"
 
 
 class CLIError(Exception):
@@ -492,9 +487,9 @@ USAGE
         # Launch Lightroom to ingest all image files.  This will run asynchronously.
         if args.automate:
             if 'darwin' in sys.platform:
-                os.system("open -a \"" + lightroom + "\" \"" + os.path.join(args.destinations[0], dirName) + "\"")
+                os.system("open -a \"" + LIGHTROOM_APP + "\" \"" + os.path.join(args.destinations[0], dirName) + "\"")
             else:
-                os.system("start \"\" \"" + lightroom + "\" \"" + os.path.join(args.destinations[0], dirName) + "\"")
+                os.system("start \"\" \"" + LIGHTROOM_APP + "\" \"" + os.path.join(args.destinations[0], dirName) + "\"")
 
         # Launch DaVinci Resolve to ingest all motion clips.  This will run asynchronously.
         if args.automateResolve:
