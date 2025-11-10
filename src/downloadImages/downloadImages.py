@@ -460,7 +460,7 @@ USAGE
         parser.add_argument("-L", "--locked-only", dest="downloadLockedOnly", action='store_true', help="Only download locked files.")
         parser.add_argument("-D", "--delete", dest="delete", action='store_true', help="Delete files from card after successful download.")
         parser.add_argument("-a", "--automate", dest="automate", action='store_true', help="Import all images into Lightroom.")
-        parser.add_argument("-r", "--resolve", dest="automateResolve", action='store_true', help="Import all motion clips into DaVinci Resolve.")
+        parser.add_argument("-r", "--resolve", dest="automateResolve", action='store_true', help="Import all video clips into DaVinci Resolve.")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
         parser.add_argument("destinations", nargs='+', help="Destination directories for images;  at least one required.")
 
