@@ -174,82 +174,83 @@ def _ensure_timeline_exists(mediaPool, project, timeline_name):
         return None
 
 
+class ResolveError(Exception):
+    """Exception raised for DaVinci Resolve integration errors."""
+    pass
+
+
 def ingestMotionClips(tag, dayStamp, description, path):
     
-    resolve = _launchResolve()
-    if not resolve:
-        return False
-        
-    project = _find_or_create_project(resolve, tag)
-    if not project:
-        return False
-    
-    mediaPool = project.GetMediaPool()
-    if not mediaPool:
-        print(f"Failed to get media pool from project '{tag}'")
-        return False
-    
     try:
-        mediaStorage = resolve.GetMediaStorage()
-        if not mediaStorage:
-            print(f"Failed to get media storage from Resolve")
-            return False
+        resolve = _launchResolve()
+        if not resolve:
+            raise ResolveError("Failed to launch or connect to DaVinci Resolve")
+            
+        project = _find_or_create_project(resolve, tag)
+        if not project:
+            raise ResolveError(f"Failed to find or create project '{tag}'")
         
-        clips = mediaStorage.AddItemListToMediaPool([path])
-        if not clips:
-            print(f"Failed to import media files from directory: {path}")
-            return False
-    except Exception as e:
-        print(f"Exception while importing media files: {e}")
-        return False
-    
-    # Create or get bin/folder named after dayStamp
-    try:
-        rootFolder = mediaPool.GetRootFolder()
-        if not rootFolder:
-            print("Failed to get root folder from media pool")
-            return False
+        mediaPool = project.GetMediaPool()
+        if not mediaPool:
+            raise ResolveError(f"Failed to get media pool from project '{tag}'")
         
-        # Check if folder already exists
-        targetFolder = None
-        subFolders = rootFolder.GetSubFolderList()
-        for folder in subFolders:
-            if folder.GetName() == dayStamp:
-                targetFolder = folder
-                break
+        try:
+            mediaStorage = resolve.GetMediaStorage()
+            if not mediaStorage:
+                raise ResolveError("Failed to get media storage from Resolve")
+            
+            clips = mediaStorage.AddItemListToMediaPool([path])
+            if not clips:
+                raise ResolveError(f"Failed to import media files from directory: {path}")
+        except Exception as e:
+            raise ResolveError(f"Exception while importing media files: {e}")
         
-        # Create folder if it doesn't exist
-        if not targetFolder:
-            targetFolder = mediaPool.AddSubFolder(rootFolder, dayStamp)
+        # Create or get bin/folder named after dayStamp
+        try:
+            rootFolder = mediaPool.GetRootFolder()
+            if not rootFolder:
+                raise ResolveError("Failed to get root folder from media pool")
+            
+            # Check if folder already exists
+            targetFolder = None
+            subFolders = rootFolder.GetSubFolderList()
+            for folder in subFolders:
+                if folder.GetName() == dayStamp:
+                    targetFolder = folder
+                    break
+            
+            # Create folder if it doesn't exist
             if not targetFolder:
-                print(f"Failed to create folder '{dayStamp}'")
-                return False
+                targetFolder = mediaPool.AddSubFolder(rootFolder, dayStamp)
+                if not targetFolder:
+                    raise ResolveError(f"Failed to create folder '{dayStamp}'")
+            
+            # Move imported clips to the target folder
+            success = mediaPool.MoveClips(clips, targetFolder)
+            if not success:
+                raise ResolveError(f"Failed to move clips to folder '{dayStamp}'")
         
-        # Move imported clips to the target folder
-        success = mediaPool.MoveClips(clips, targetFolder)
-        if not success:
-            print(f"Failed to move clips to folder '{dayStamp}'")
-            return False
-    
-    except Exception as e:
-        print(f"Exception while organizing clips into folder: {e}")
-        return False
-    
-    # Ensure a timeline exists for this day
-    timeline = _ensure_timeline_exists(mediaPool, project, dayStamp)
-    if not timeline:
-        print(f"Failed to ensure timeline '{dayStamp}' exists")
-        return False
-    
-    # Sort by name
-    clips = sorted(clips, key = lambda clip : clip.GetClipProperty("File Name"))
+        except Exception as e:
+            raise ResolveError(f"Exception while organizing clips into folder: {e}")
+        
+        # Ensure a timeline exists for this day
+        timeline = _ensure_timeline_exists(mediaPool, project, dayStamp)
+        if not timeline:
+            raise ResolveError(f"Failed to ensure timeline '{dayStamp}' exists")
+        
+        # Sort by name
+        clips = sorted(clips, key = lambda clip : clip.GetClipProperty("File Name"))
 
-    # Append the sorted clips to the timeline
-    try:
-        for clip in clips:
-            mediaPool.AppendToTimeline(clip)
+        # Append the sorted clips to the timeline
+        try:
+            for clip in clips:
+                mediaPool.AppendToTimeline(clip)
+        except Exception as e:
+            raise ResolveError(f"Exception while appending clips to timeline: {e}")
+        
+        return
+        
+    except ResolveError:
+        raise  # Re-raise our custom exceptions
     except Exception as e:
-        print(f"Exception while appending clips to timeline: {e}")
-        return False
-    
-    return True
+        raise ResolveError(f"Unexpected error in ingestMotionClips: {e}")

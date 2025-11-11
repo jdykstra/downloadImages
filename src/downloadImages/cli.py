@@ -18,7 +18,7 @@ downloadImages -- Download images from a DCF volume such as an SD card.
     the destination directory, but we don't allow multiple destination files that differ only in case.
 '''
 
-from .resolve_integration import ingestMotionClips
+from .resolve_integration import ingestMotionClips, ResolveError
 from progressbar.bar import ProgressBarMixinBase, types
 from .apppaths import LIGHTROOM_APP
 from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
@@ -537,8 +537,11 @@ USAGE
             dirName = str(today.month) + "-" + str(today.day) + " " + args.tag
             dayStamp = str(today.month) + "-" + str(today.day)
             fullPath = os.path.join(args.destinations[0], dirName)
-            if not ingestMotionClips(args.tag, dayStamp, args.description, fullPath):
-                print("Error:  Could not ingress motion files to Resolve.")
+            try:
+                ingestMotionClips(args.tag, dayStamp, args.description, fullPath)
+            except ResolveError as e:
+                print("Error: Could not ingest motion files to Resolve.")
+                print(f"Error: {e}")
                 return 1
             print(f"Ingesting video completed.")
 
