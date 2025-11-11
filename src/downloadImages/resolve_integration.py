@@ -17,38 +17,54 @@ def _launchResolve():
     Launch DaVinci Resolve if it's not already running and wait for it to be available.
     """
 
-    # First check if Resolve is already available
-    resolve = GetResolve()
-    if resolve is not None:
-        return resolve
+    ATTEMPT_SECONDS = 20.0
 
-    # Resolve is not available, launch it
-    if 'darwin' in sys.platform:
-        # macOS
-        try:
-            subprocess.Popen(['open', '-a', RESOLVE_APP_NAME])
-        except Exception as e:
-            print(f"Error launching DaVinci Resolve on macOS: {e}")
-            return False
-    else:
-        # Windows
-        try:
-            subprocess.Popen([RESOLVE_EXE_PATH])
-        except Exception as e:
-            print(f"Error launching DaVinci Resolve on Windows: {e}")
-            return False
-
-    # Wait for Resolve to start up, retrying GetResolve() every 0.5 seconds for up to 20 seconds
-    start_time = time.time()
-    while time.time() - start_time < 20.0:
+    while True:
+        # First check if Resolve is already available
         resolve = GetResolve()
         if resolve is not None:
             return resolve
-        time.sleep(0.5)
 
-    # Timeout reached
-    print("Error: DaVinci Resolve did not respond within 20 seconds")
-    return None
+        # Resolve is not available, launch it
+        if 'darwin' in sys.platform:
+            # macOS
+            try:
+                subprocess.Popen(['open', '-a', RESOLVE_APP_NAME])
+            except Exception as e:
+                print(f"Error launching DaVinci Resolve on macOS: {e}")
+                return False
+        else:
+            # Windows
+            try:
+                subprocess.Popen([RESOLVE_EXE_PATH])
+            except Exception as e:
+                print(f"Error launching DaVinci Resolve on Windows: {e}")
+                return False
+
+        # Wait for Resolve to start up, retrying GetResolve() every 0.5 seconds for up to 20 seconds
+        start_time = time.time()
+        while time.time() - start_time < ATTEMPT_SECONDS:
+            resolve = GetResolve()
+            if resolve is not None:
+                return resolve
+            time.sleep(0.5)
+
+        # Timeout reached - ask user what to do
+        print(f"\nDaVinci Resolve did not respond within {ATTEMPT_SECONDS} seconds.")
+        while True:
+            try:
+                response = input("Would you like to retry (r) or abort (a)? ").strip().lower()
+                if response in ['r', 'retry']:
+                    print("Retrying...")
+                    break  # Break inner loop to retry outer loop
+                elif response in ['a', 'abort']:
+                    print("Aborting Resolve launch.")
+                    return None
+                else:
+                    print("Please enter 'r' for retry or 'a' for abort.")
+            except (EOFError, KeyboardInterrupt):
+                print("\nAborting Resolve launch.")
+                return None
 
 
 def _find_or_create_project(resolve, tag: str):
@@ -163,9 +179,7 @@ def ingestMotionClips(tag, dayStamp, description, path):
     resolve = _launchResolve()
     if not resolve:
         return False
-    
-    print(f"Ingesting video to Resolve project {tag}.")
-    
+        
     project = _find_or_create_project(resolve, tag)
     if not project:
         return False
