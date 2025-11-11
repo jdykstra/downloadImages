@@ -236,7 +236,7 @@ def ingestMotionClips(tag, dayStamp, description, path):
         # Ensure a timeline exists for this day
         timeline = _ensure_timeline_exists(mediaPool, project, dayStamp)
         if not timeline:
-            raise ResolveError(f"Failed to ensure timeline '{dayStamp}' exists")
+            raise ResolveError(f"Failed to create timeline '{dayStamp}'")
         
         # Sort by name
         clips = sorted(clips, key = lambda clip : clip.GetClipProperty("File Name"))
