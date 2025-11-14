@@ -3,11 +3,11 @@
     "configurations": [
         {
             "name": "MacOS Test",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
-            "program": "/Volumes/nobackup-cs/downloadImages/downloadImages.py",
+            "program": "/Volumes/nobackup-cs/downloadImages/downloadImages/downloadImages.py",
             "console": "integratedTerminal",
-            "justMyCode": "false",
+            "justMyCode": false,
             "args": [  
                 "-t",
                 "test",
@@ -19,10 +19,26 @@
             "name": "Windows Test",
             "type": "debugpy",
             "request": "launch",
-            "program": "R:\\downloadImages\\downloadImages.py",
+            "program": "R:\\downloadImages\downloadImages\downloadImages.py",
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": ["-t", "test", "H:\\Image Edit"]
+        },
+        {
+            "name": "Resolve Integration Test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/Volumes/nobackup-cs/downloadImages/downloadImages/downloadImages.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "-r",
+                "-t",
+                "testproj",
+                "-d",
+                "Test project.",
+                "/Users/jwd/Image Edit/"
+            ]
         }
 
     ]
