@@ -1,17 +1,7 @@
 #!/usr/bin/env python3
 # encoding: utf-8
-'''
-downloadImages -- Download images from a DCF volume such as an SD card.
-
-@author:     John Dykstra
-
-@copyright:  2017-2024 John Dykstra. All rights reserved.
-
-@license:    MIT
-
-@contact:    jdykstra72@gmail.com
-
-'''
+__license__ = "MIT"
+__contact__ = "jdykstra72@gmail.com"
 
 '''
     We try to be filesystem-case-sensitive-agnostic.  The case of source filenames and extensions is preserved in
@@ -35,10 +25,10 @@ from builtins import str
 from progressbar.widgets import Data
 from builtins import zip
 __all__ = ['doDownload']
-__version__ = "1.12"
+__version__ = "1.14"
 __title__ = "downloadImages"
 __author__ = "John Dykstra"
-__copyright__ = "2017-2023"
+__copyright__ = "2017-2025 John Dykstra. All rights reserved."
 
 
 DEBUG = False
@@ -48,7 +38,7 @@ if DEBUG:
 
 jpegExtensions = ['JPG']
 imageExtensions = jpegExtensions + ['NEF']
-videoExtensions = ['MOV', 'MP4']
+videoExtensions = ['MOV', 'MP4', 'NEV']
 
 cleol = "\033[K"  # Clear to end of line ANSI escape sequence
 
@@ -117,7 +107,7 @@ class Image:
         return extension in self.extensions
 
     def __str__(self):
-        return "ImageFile:  filename = {0}, srcPath = {1}, destPath = {2}, extensions = {3}, skip = {4}, duplicate = {5}, xmp = {6}, xmpPath = {7}, xmpName = {8}, xmpDestPath = {9}, xmpDestName = {10}, xmpDestFullPath = {11}".format(self.name, self.srcPath, self.destPath, self.extensions, self.skip, self.duplicate, self.xmp, self.xmpPath, self.xmpName, self.xmpDestPath, self.xmpDestName, self.xmpDestFullPath)
+        return "ImageFile: srcFilename = {0}, srcPath = {1}, extensions = {2}, fileLocked = {3}, size = {4}, dstFilename = {5}".format(self.srcFilename, self.srcPath, self.extensions, self.fileLocked, self.size, self.dstFilename)
 
     def __repr__(self):
         return self.__str__()
@@ -303,7 +293,7 @@ def copyImageFiles(images, destinationDirs, skips, description, downloadLockedOn
                 for ext in image.extensions:
                     srcFullpath = os.path.join(
                         image.srcPath, image.srcFilename + "." + ext)
-                    dstFullPath = os.path.join(dest, imageName + "." + ext)
+                    dstFullPath = os.path.join(dest, image.dstFilename + "." + ext)
 
                     # Copy the image file unless it's a duplicate.  If we're only copying locked files, skip unlocked files.
                     if imageName not in skip:
@@ -532,7 +522,7 @@ USAGE
 
         # Launch DaVinci Resolve to ingest all motion clips.  This will run asynchronously.
         if args.automateResolve:
-            print(f"Ingesting video to Resolve project {tag}...")
+            print(f"Ingesting video to Resolve project {args.tag}...")
             today = datetime.date.today()
             dirName = str(today.month) + "-" + str(today.day) + " " + args.tag
             dayStamp = str(today.month) + "-" + str(today.day)
@@ -574,4 +564,4 @@ USAGE
             caffeinateProcess.terminate()
         if DEBUG:
             raise(e)       
-        return 2    
+        return 2
