@@ -89,7 +89,7 @@ def findSourceVolume():
             tp = os.path.join(d, "DCIM")
             if os.path.isdir(tp):
                 vollist.append((d, tp))
-    return vollist;
+    return vollist
 
 
 # Create the destination directory, returning a path to it.
