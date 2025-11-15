@@ -1,5 +1,18 @@
 #!/usr/bin/env python3
 # encoding: utf-8
+'''
+downloadImages -- Download images from a DCF volume such as an SD card.
+
+@author:     John Dykstra
+
+@copyright:  2017-2024 John Dykstra. All rights reserved.
+
+@license:    MIT
+
+@contact:    jdykstra72@gmail.com
+   
+'''
+
 __license__ = "MIT"
 __contact__ = "jdykstra72@gmail.com"
 
