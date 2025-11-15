@@ -244,7 +244,7 @@ def lookForDuplicates(images: dict[str, 'Image'], dst: str) -> list[str]:
 # Tweak the AbsoluteETA widget to only show the time part of the time and date.
 class CustomAbsoluteETA(AbsoluteETA):
 
-   def __call__(
+    def __call__(
         self,
         progress: ProgressBarMixinBase,
         data: Data,
