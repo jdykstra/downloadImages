@@ -346,32 +346,26 @@ def copyImageFiles(
                     # ?? The write protect part could be coded as:
                     # ??      fileLocked and "Purple" or "None"
                     if ext.upper() in IMAGE_EXTENSIONS:
-                        sidecar = open(os.path.join(
-                            dest, image.dstFilename + ".xmp"), "w")
-                        sidecar.write(
-                            "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n")
-                        sidecar.write(
-                            "<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n")
-                        sidecar.write("\n")
-                        sidecar.write("  <rdf:Description rdf:about=\"\"\n")
-                        sidecar.write(
-                            "     xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"\n")
-                        sidecar.write(
-                            "     xmlns:dc=\"http://purl.org/dc/elements/1.1/\"\n")
-                        if image.fileLocked:
-                            sidecar.write("     xmp:Label=\"Purple\"\n")
-                        sidecar.write("     >\n")
-                        sidecar.write("     <dc:description>\n")
-                        sidecar.write("      <rdf:Alt>\n")
-                        sidecar.write(
-                            f"        <rdf:li xml:lang=\"x-default\">{description}&#xA;</rdf:li>\n")
-                        sidecar.write("      </rdf:Alt>\n")
-                        sidecar.write("    </dc:description>\n")
-                        sidecar.write("  </rdf:Description>\n")
-                        sidecar.write("\n")
-                        sidecar.write("</rdf:RDF>\n")
-                        sidecar.write("</x:xmpmeta>\n")
-                        sidecar.close()
+                        xmp_label = "     xmp:Label=\"Purple\"\n" if image.fileLocked else ""
+                        xmp_content = f"""<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">
+<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">
+
+  <rdf:Description rdf:about=\"\"
+     xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"
+     xmlns:dc=\"http://purl.org/dc/elements/1.1/\"
+{xmp_label}     >
+     <dc:description>
+      <rdf:Alt>
+        <rdf:li xml:lang=\"x-default\">{description}&#xA;</rdf:li>
+      </rdf:Alt>
+    </dc:description>
+  </rdf:Description>
+
+</rdf:RDF>
+</x:xmpmeta>
+"""
+                        with open(os.path.join(dest, image.dstFilename + ".xmp"), "w") as sidecar:
+                            sidecar.write(xmp_content)
             alreadyCopied += image.size
 
     sys.stdout.write("\n")      # Needed after progress bar output
