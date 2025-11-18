@@ -135,12 +135,9 @@ def createDestinationDir(destPath: str, name: str) -> str:
 
 # Return a dictionary describing all of the image files on the source, indexed by the image name.
 def findSourceImages(src: str, downloadLockedOnly: bool) -> dict[str, 'Image']:
+    global total_to_transfer, jpeg_count, video_count, locked_file_count
     nearRollover = False
     rolloverOccurred = False
-    jpegCnt = 0
-    movCnt = 0
-    lockedFileCnt = 0
-    totalToTransfer = 0
 
     # Enumerate the image files on the source volume.
     for dirpath, _, files in os.walk(src):
@@ -193,23 +190,23 @@ def findSourceImages(src: str, downloadLockedOnly: bool) -> dict[str, 'Image']:
                 images_db[imageName] = Image(
                     srcFilename, dirpath, extension, bool(fileLocked), size, dstFilename)
 
-            totalToTransfer += size
+            total_to_transfer += size
 
             if extension.upper() in JPEG_EXTENSIONS:
-                jpegCnt += 1
+                jpeg_count += 1
             elif extension.upper() in VIDEO_EXTENSIONS:
-                movCnt += 1
+                video_count += 1
 
             if fileLocked:
-                lockedFileCnt += 1
+                locked_file_count += 1
 
-    if jpegCnt > 0:
-        print(f"WARNING:  {jpegCnt} JPEG files found!")
-    if movCnt > 0:
-        print(f"{movCnt} video files found.")
-    print(f"Total size of files to transfer: {totalToTransfer / 1_073_741_824:.2f} GB.")
-    if lockedFileCnt > 0:
-        print(f"{lockedFileCnt} files are locked.")
+    if jpeg_count > 0:
+        print(f"WARNING:  {jpeg_count} JPEG files found!")
+    if video_count > 0:
+        print(f"{video_count} video files found.")
+    print(f"Total size of files to transfer: {total_to_transfer / 1_073_741_824:.2f} GB.")
+    if locked_file_count > 0:
+        print(f"{locked_file_count} files are locked.")
     elif downloadLockedOnly:
         print("WARNING:  Downloading locked files only, but no locked files found.")
     if rolloverOccurred:
@@ -306,8 +303,6 @@ def copyImageFiles(
     delete: bool = False
 ) -> None:
     
-    global totalToTransfer
-
     alreadyCopied = 0
     with ProgressTracker(len(destinationDirs) * total_to_transfer) as tracker:
         for imageName in iter(images_db):
