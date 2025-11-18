@@ -387,7 +387,7 @@ def doDownload(
 
     # Find image files on the source volume.
     images = findSourceImages(sourceVol[1], downloadLockedOnly)
-    print(f"{len(images)} image files found on {sourceVol[0]}.")
+    print(f"{len(images)} images (potentially in multiple files) found on {sourceVol[0]}.")
 
     # If we're supposed to delete the source images, make sure that we can.
     if (delete and not os.access(sourceVol[1], os.W_OK)):
