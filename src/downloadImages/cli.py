@@ -57,31 +57,31 @@ motion_count: int = 0
 locked_file_count: int = 0
 total_to_transfer: int = 0
 
-JPEG_EXTENSIONS: list[str] = ['JPG']
-STILL_EXTENSIONS: list[str] = JPEG_EXTENSIONS + ['NEF']
-MOTION_EXTENSIONS: list[str] = ['MOV', 'MP4', 'NEV']
+JPEG_FILE_TYPES: list[str] = ['JPG']
+STILL_FILE_TYPES: list[str] = JPEG_FILE_TYPES + ['NEF']
+MOTION_FILE_TYPES: list[str] = ['MOV', 'MP4', 'NEV']
 
 CLEOL: str = "\033[K"  # Clear to end of line ANSI escape sequence
 
 
-# Class representing a single image.  That image may have more than one associated image file, such as a JPEG and a RAW file.
+# Class representing a single image. That image may have more than one associated file type, such as a JPEG and a RAW file.
 class Image:
-    def __init__(self, srcFilename: str, srcPath: str, extension: str, fileLocked: bool, size: int, dstFilename: str) -> None:
+    def __init__(self, srcFilename: str, srcPath: str, file_type: str, fileLocked: bool, size: int, dstFilename: str) -> None:
         self.srcFilename: str = srcFilename
         self.srcPath: str = srcPath
-        self.extensions: list[str] = [extension]
+        self.file_types: list[str] = [file_type]
         self.fileLocked: bool = fileLocked
         self.size: int = size
         self.dstFilename: str = dstFilename
 
-    def addFileExtension(self, extension: str) -> None:
-        self.extensions.append(extension)
+    def addFileType(self, file_type: str) -> None:
+        self.file_types.append(file_type)
 
-    def containsFileExtension(self, extension: str) -> bool:
-        return extension in self.extensions
+    def containsFileType(self, file_type: str) -> bool:
+        return file_type in self.file_types
 
     def __str__(self) -> str:
-        return (f"ImageFile: srcFilename = {self.srcFilename}, srcPath = {self.srcPath}, extensions = {self.extensions}, "
+        return (f"ImageFile: srcFilename = {self.srcFilename}, srcPath = {self.srcPath}, file_types = {self.file_types}, "
                 f"fileLocked = {self.fileLocked}, size = {self.size}, dstFilename = {self.dstFilename}")
 
     def __repr__(self) -> str:
@@ -151,17 +151,17 @@ def findSourceImages(src: str, downloadLockedOnly: bool) -> dict[str, 'Image']:
             if len(fparts) != 2:
                 continue
             srcFilename = fparts[0]
-            extension = fparts[-1]
+            file_type = fparts[-1]
             # Remove underscores used by Nikon
             dstFilename = srcFilename.replace("_", "")
             imageName = dstFilename.upper()
-            if extension.upper() not in STILL_EXTENSIONS + MOTION_EXTENSIONS:
+            if file_type.upper() not in STILL_FILE_TYPES + MOTION_FILE_TYPES:
                 continue
 
             # If write protect was set on an image by the camera, it will appear on
             # MacOS as the user-immutable flag.  FWIW, this flag can be seen using
             # "ls -lhdO".  On Windows, we just look for read-only.
-            srcFullPath = os.path.join(dirpath, srcFilename + "." + extension)
+            srcFullPath = os.path.join(dirpath, srcFilename + "." + file_type)
             statInfo = os.stat(srcFullPath)
             if 'darwin' in sys.platform:
                 fileLocked = statInfo.st_flags & stat.UF_IMMUTABLE
@@ -178,23 +178,23 @@ def findSourceImages(src: str, downloadLockedOnly: bool) -> dict[str, 'Image']:
 
             size = statInfo.st_size
 
-            # Have we already seen a file for this image (with a different extension)?
+            # Have we already seen a file for this image (with a different file type)?
             try:
                 image = images_db[imageName]
-                if image.containsFileExtension(extension):
+                if image.containsFileType(file_type):
                     raise CLIError(
-                        f"Source contains more than one {srcFilename}.{extension}")
-                image.addFileExtension(extension)
+                        f"Source contains more than one {srcFilename}.{file_type}")
+                image.addFileType(file_type)
                 image.size += size
             except KeyError:
                 images_db[imageName] = Image(
-                    srcFilename, dirpath, extension, bool(fileLocked), size, dstFilename)
+                    srcFilename, dirpath, file_type, bool(fileLocked), size, dstFilename)
 
             total_to_transfer += size
 
-            if extension.upper() in JPEG_EXTENSIONS:
+            if file_type.upper() in JPEG_FILE_TYPES:
                 jpeg_count += 1
-            elif extension.upper() in MOTION_EXTENSIONS:
+            elif file_type.upper() in MOTION_FILE_TYPES:
                 motion_count += 1
 
             if fileLocked:
@@ -226,12 +226,12 @@ def lookForDuplicates(images: dict[str, 'Image'], dst: str) -> list[str]:
     duplicates = []
 
     for imageName in iter(images_db):
-        for ext in images_db[imageName].extensions:
+        for file_type in images_db[imageName].file_types:
             dstFullPath = os.path.join(
-                dst, images_db[imageName].dstFilename + "." + ext)
+                dst, images_db[imageName].dstFilename + "." + file_type)
             if os.path.exists(dstFullPath):
                 srcFullPath = os.path.join(
-                    images_db[imageName].srcPath, images_db[imageName].srcFilename + "." + ext)
+                    images_db[imageName].srcPath, images_db[imageName].srcFilename + "." + file_type)
                 if (os.stat(dstFullPath).st_size == os.stat(srcFullPath).st_size):
                     duplicates.append(imageName)
 
@@ -308,10 +308,10 @@ def copyImageFiles(
         for imageName in iter(images_db):
             image = images_db[imageName]
             for dest, skip in zip(destinationDirs, skips):
-                for ext in image.extensions:
+                for file_type in image.file_types:
                     srcFullpath = os.path.join(
-                        image.srcPath, image.srcFilename + "." + ext)
-                    dstFullPath = os.path.join(dest, image.dstFilename + "." + ext)
+                        image.srcPath, image.srcFilename + "." + file_type)
+                    dstFullPath = os.path.join(dest, image.dstFilename + "." + file_type)
 
                     # Copy the image file unless it's a duplicate.  If we're only copying locked files, skip unlocked files.
                     if imageName not in skip:
@@ -322,7 +322,7 @@ def copyImageFiles(
                     # If write protect was set on the source file, clear it on the destination.  We'll
                     # treat it specially below when we create the XMP sidecar file.  If we're going
                     # to delete the source file, also clear write protect on it.
-                    # ?? This is slightly unsafe, since we'll loose the locked indication on the source
+                    # ?? This is slightly unsafe, since we'll lose the locked indication on the source
                     # ?? if we crash before deleting it.
                     if image.fileLocked:
                         if 'darwin' in sys.platform:
@@ -340,7 +340,7 @@ def copyImageFiles(
                     # ?? Use multi-line string constant?
                     # ?? The write protect part could be coded as:
                     # ??      fileLocked and "Purple" or "None"
-                    if ext.upper() in STILL_EXTENSIONS:
+                    if file_type.upper() in STILL_FILE_TYPES:
                         xmp_label = "     xmp:Label=\"Purple\"\n" if image.fileLocked else ""
                         xmp_content = f"""<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">
 <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">
