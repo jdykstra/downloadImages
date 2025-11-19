@@ -50,10 +50,9 @@ if DEBUG:
     import traceback
 
 # File-global source image database and summary variables
-images_db: dict[str, 'Image'] = {}
+images_db: dict[str, 'Source_Image'] = {}
 total_images: int = 0
-jpeg_count: int = 0
-motion_count: int = 0
+file_type_count: dict[str, int] = {}
 locked_file_count: int = 0
 total_to_transfer: int = 0
 
@@ -64,8 +63,7 @@ motion_file_types: list[str] = ['MOV', 'MP4', 'NEV']
 CLEOL: str = "\033[K"  # Clear to end of line ANSI escape sequence
 
 
-# Class representing a single image. That image may have more than one associated file type, such as a JPEG and a RAW file.
-class Image:
+class Source_Image:
     def __init__(self, src_filename: str, src_path: str, extension: str, file_locked: bool, size: int, dst_filename: str) -> None:
         self.src_filename: str = src_filename
         self.src_path: str = src_path
@@ -134,8 +132,8 @@ def create_destination_dir(dest_path: str, name: str) -> str:
 
 
 # Return a dictionary describing all of the image files on the source, indexed by the image name.
-def find_source_images(src: str, download_locked_only: bool) -> dict[str, 'Image']:
-    global total_to_transfer, jpeg_count, motion_count, locked_file_count
+def find_source_images(src: str, download_locked_only: bool) -> dict[str, 'Source_Image']:
+    global total_to_transfer, file_type_count, locked_file_count
     nearRollover = False
     rolloverOccurred = False
 
@@ -154,7 +152,8 @@ def find_source_images(src: str, download_locked_only: bool) -> dict[str, 'Image
             # Remove underscores used by Nikon
             dst_filename = src_filename.replace("_", "")
             image_name = dst_filename.upper()
-            if extension.upper() not in still_file_types + motion_file_types:
+            ext_upper = extension.upper()
+            if ext_upper not in still_file_types + motion_file_types:
                 continue
 
             # If write protect was set on an image by the camera, it will appear on
@@ -186,15 +185,15 @@ def find_source_images(src: str, download_locked_only: bool) -> dict[str, 'Image
                 image.add_file_extension(extension)
                 image.size += size
             except KeyError:
-                images_db[image_name] = Image(
+                images_db[image_name] = Source_Image(
                     src_filename, dirpath, extension, bool(file_locked), size, dst_filename)
 
             total_to_transfer += size
 
-            if extension.upper() in jpeg_file_types:
-                jpeg_count += 1
-            elif extension.upper() in motion_file_types:
-                motion_count += 1
+            # Increment count for this file type (extension in upper case)
+            if ext_upper not in file_type_count:
+                file_type_count[ext_upper] = 0
+            file_type_count[ext_upper] += 1
 
             if file_locked:
                 locked_file_count += 1
@@ -213,38 +212,9 @@ def find_source_images(src: str, download_locked_only: bool) -> dict[str, 'Image
             nearRollover |= image_name[-4] == '9'
             rolloverOccurred |= image_name[-4:] == "9999"
 
-            # If we're downloading only locked images, ignore all the rest.
-            if download_locked_only and not file_locked:
-                continue
-
-            size = stat_info.st_size
-
-            # Have we already seen a file for this image (with a different extension)?
-            try:
-                image = images_db[image_name]
-                if image.contains_file_extension(extension):
-                    raise CliError(
-                        f"Source contains more than one {src_filename}.{extension}")
-                image.add_file_extension(extension)
-                image.size += size
-            except KeyError:
-                images_db[image_name] = Image(
-                    src_filename, dirpath, extension, bool(file_locked), size, dst_filename)
-
-            total_to_transfer += size
-
-            if extension.upper() in jpeg_file_types:
-                jpeg_count += 1
-            elif extension.upper() in motion_file_types:
-                motion_count += 1
-
-            if file_locked:
-                locked_file_count += 1
-
-    if jpeg_count > 0:
-        print(f"WARNING:  {jpeg_count} JPEG files found!")
-    if motion_count > 0:
-        print(f"{motion_count} motion files found.")
+    for ext, count in file_type_count.items():
+        if count > 0:
+            print(f"{count} {ext} files found.")
     print(f"Total size of files to transfer: {total_to_transfer / 1_073_741_824:.2f} GB.")
     if locked_file_count > 0:
         print(f"{locked_file_count} files are locked.")
@@ -263,7 +233,7 @@ def find_source_images(src: str, download_locked_only: bool) -> dict[str, 'Image
 # ?? the images dictionary.
 # ?? Except a file might be a duplicate in one destination directory, and not another.
 # ?? Issue #3:  This doesn't properly handle source files with multiple extensions which are only partially copied.
-def look_for_duplicates(images: dict[str, 'Image'], dst: str) -> list[str]:
+def look_for_duplicates(images: dict[str, 'Source_Image'], dst: str) -> list[str]:
     duplicates = []
 
     for image_name in iter(images_db):
@@ -331,7 +301,7 @@ def copy_with_progress(src_file: str, dst_file: str, image_name: str, tracker) -
 
 # Copy the image files from the source to the destination and create a XMP sidecar file for each.
 def copy_image_files(
-    images: dict[str, 'Image'],
+    images: dict[str, 'Source_Image'],
     destination_dirs: list[str],
     skips: list[list[str]],
     description: str,
@@ -404,6 +374,7 @@ def copy_image_files(
 
 
 # Programmatic API to this module.  Returns name (not path) of destination directories.
+
 def do_download(
     destination_paths: list[str],
     tag: str,
@@ -619,3 +590,6 @@ USAGE
         if DEBUG:
             raise(e)       
         return 2
+
+if __name__ == "__main__":
+    sys.exit(main())
