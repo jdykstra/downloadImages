@@ -53,13 +53,13 @@ if DEBUG:
 images_db: dict[str, 'Image'] = {}
 total_images: int = 0
 jpeg_count: int = 0
-video_count: int = 0
+motion_count: int = 0
 locked_file_count: int = 0
 total_to_transfer: int = 0
 
 JPEG_EXTENSIONS: list[str] = ['JPG']
-IMAGE_EXTENSIONS: list[str] = JPEG_EXTENSIONS + ['NEF']
-VIDEO_EXTENSIONS: list[str] = ['MOV', 'MP4', 'NEV']
+STILL_EXTENSIONS: list[str] = JPEG_EXTENSIONS + ['NEF']
+MOTION_EXTENSIONS: list[str] = ['MOV', 'MP4', 'NEV']
 
 CLEOL: str = "\033[K"  # Clear to end of line ANSI escape sequence
 
@@ -135,7 +135,7 @@ def createDestinationDir(destPath: str, name: str) -> str:
 
 # Return a dictionary describing all of the image files on the source, indexed by the image name.
 def findSourceImages(src: str, downloadLockedOnly: bool) -> dict[str, 'Image']:
-    global total_to_transfer, jpeg_count, video_count, locked_file_count
+    global total_to_transfer, jpeg_count, motion_count, locked_file_count
     nearRollover = False
     rolloverOccurred = False
 
@@ -155,7 +155,7 @@ def findSourceImages(src: str, downloadLockedOnly: bool) -> dict[str, 'Image']:
             # Remove underscores used by Nikon
             dstFilename = srcFilename.replace("_", "")
             imageName = dstFilename.upper()
-            if extension.upper() not in IMAGE_EXTENSIONS + VIDEO_EXTENSIONS:
+            if extension.upper() not in STILL_EXTENSIONS + MOTION_EXTENSIONS:
                 continue
 
             # If write protect was set on an image by the camera, it will appear on
@@ -194,16 +194,16 @@ def findSourceImages(src: str, downloadLockedOnly: bool) -> dict[str, 'Image']:
 
             if extension.upper() in JPEG_EXTENSIONS:
                 jpeg_count += 1
-            elif extension.upper() in VIDEO_EXTENSIONS:
-                video_count += 1
+            elif extension.upper() in MOTION_EXTENSIONS:
+                motion_count += 1
 
             if fileLocked:
                 locked_file_count += 1
 
     if jpeg_count > 0:
         print(f"WARNING:  {jpeg_count} JPEG files found!")
-    if video_count > 0:
-        print(f"{video_count} video files found.")
+    if motion_count > 0:
+        print(f"{motion_count} motion files found.")
     print(f"Total size of files to transfer: {total_to_transfer / 1_073_741_824:.2f} GB.")
     if locked_file_count > 0:
         print(f"{locked_file_count} files are locked.")
@@ -340,7 +340,7 @@ def copyImageFiles(
                     # ?? Use multi-line string constant?
                     # ?? The write protect part could be coded as:
                     # ??      fileLocked and "Purple" or "None"
-                    if ext.upper() in IMAGE_EXTENSIONS:
+                    if ext.upper() in STILL_EXTENSIONS:
                         xmp_label = "     xmp:Label=\"Purple\"\n" if image.fileLocked else ""
                         xmp_content = f"""<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">
 <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">
@@ -496,7 +496,7 @@ USAGE
         parser.add_argument("-a", "--automate", dest="automate",
                             action='store_true', help="Import all images into Lightroom.")
         parser.add_argument("-r", "--resolve", dest="automateResolve",
-                            action='store_true', help="Import all video clips into DaVinci Resolve.")
+                    action='store_true', help="Import all motion clips into DaVinci Resolve.")
         parser.add_argument('-V', '--version', action='version',
                             version=program_version_message)
         parser.add_argument("destinations", nargs='+',
@@ -540,7 +540,7 @@ USAGE
 
         # Launch DaVinci Resolve to ingest all motion clips.  This will run asynchronously.
         if args.automateResolve:
-            print(f"Ingesting video to Resolve project {args.tag}...")
+            print(f"Ingesting motion to Resolve project {args.tag}...")
             today = datetime.date.today()
             dirName = str(today.month) + "-" + str(today.day) + " " + args.tag
             dayStamp = str(today.month) + "-" + str(today.day)
@@ -551,7 +551,7 @@ USAGE
                 print("Error: Could not ingest motion files to Resolve.")
                 print(f"Error: {e}")
                 return 1
-            print(f"Ingesting video completed.")
+            print(f"Ingesting motion completed.")
 
         return 0
         
