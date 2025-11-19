@@ -13,8 +13,6 @@ downloadImages -- Download images from a DCF volume such as an SD card.
    
 '''
 
-__license__ = "MIT"
-__contact__ = "jdykstra72@gmail.com"
 
 '''
     We try to be filesystem-case-sensitive-agnostic.  The case of source filenames and extensions is preserved in
@@ -38,11 +36,13 @@ from builtins import str
 from progressbar.widgets import Data
 from builtins import zip
 
-__all__ = ['doDownload']
 __version__ = "2.0"
 __title__ = "downloadImages"
 __author__ = "John Dykstra"
 __copyright__ = "2017-2025 John Dykstra. All rights reserved."
+__license__ = "MIT"
+__contact__ = "jdykstra72@gmail.com"
+
 
 DEBUG: bool = False
 if DEBUG:
@@ -57,42 +57,42 @@ motion_count: int = 0
 locked_file_count: int = 0
 total_to_transfer: int = 0
 
-JPEG_FILE_TYPES: list[str] = ['JPG']
-STILL_FILE_TYPES: list[str] = JPEG_FILE_TYPES + ['NEF']
-MOTION_FILE_TYPES: list[str] = ['MOV', 'MP4', 'NEV']
+jpeg_file_types: list[str] = ['JPG']
+still_file_types: list[str] = jpeg_file_types + ['NEF']
+motion_file_types: list[str] = ['MOV', 'MP4', 'NEV']
 
 CLEOL: str = "\033[K"  # Clear to end of line ANSI escape sequence
 
 
 # Class representing a single image. That image may have more than one associated file type, such as a JPEG and a RAW file.
 class Image:
-    def __init__(self, srcFilename: str, srcPath: str, file_type: str, fileLocked: bool, size: int, dstFilename: str) -> None:
-        self.srcFilename: str = srcFilename
-        self.srcPath: str = srcPath
-        self.file_types: list[str] = [file_type]
-        self.fileLocked: bool = fileLocked
+    def __init__(self, src_filename: str, src_path: str, extension: str, file_locked: bool, size: int, dst_filename: str) -> None:
+        self.src_filename: str = src_filename
+        self.src_path: str = src_path
+        self.extensions: list[str] = [extension]
+        self.file_locked: bool = file_locked
         self.size: int = size
-        self.dstFilename: str = dstFilename
+        self.dst_filename: str = dst_filename
 
-    def addFileType(self, file_type: str) -> None:
-        self.file_types.append(file_type)
+    def add_file_extension(self, extension: str) -> None:
+        self.extensions.append(extension)
 
-    def containsFileType(self, file_type: str) -> bool:
-        return file_type in self.file_types
+    def contains_file_extension(self, extension: str) -> bool:
+        return extension in self.extensions
 
     def __str__(self) -> str:
-        return (f"ImageFile: srcFilename = {self.srcFilename}, srcPath = {self.srcPath}, file_types = {self.file_types}, "
-                f"fileLocked = {self.fileLocked}, size = {self.size}, dstFilename = {self.dstFilename}")
+        return (f"ImageFile: src_filename = {self.src_filename}, src_path = {self.src_path}, extensions = {self.extensions}, "
+                f"file_locked = {self.file_locked}, size = {self.size}, dst_filename = {self.dst_filename}")
 
     def __repr__(self) -> str:
         return self.__str__()
 
 
-class CLIError(Exception):
+class CliError(Exception):
     '''Generic exception to raise and log different fatal errors.'''
 
     def __init__(self, msg):
-        super(CLIError).__init__(type(self))
+        super().__init__(type(self))
         self.msg = "ERROR: %s" % msg
 
     def __str__(self):
@@ -103,7 +103,7 @@ class CLIError(Exception):
 
 
 # Find potential source DCF volumes, returning a list of (name, path) tuples.
-def findSourceVolume() -> list[tuple[str, str]]:
+def find_source_volume() -> list[tuple[str, str]]:
     vollist = []
     if 'darwin' in sys.platform:
         for d in os.listdir("/Volumes"):
@@ -123,18 +123,18 @@ def findSourceVolume() -> list[tuple[str, str]]:
 
 
 # Create the destination directory, returning a path to it.
-def createDestinationDir(destPath: str, name: str) -> str:
-    d = os.path.join(destPath, name)
+def create_destination_dir(dest_path: str, name: str) -> str:
+    d = os.path.join(dest_path, name)
 
     # If the destination directory already exists, accept that silently.
     if not os.path.isdir(d):
-         os.makedirs(d)
+        os.makedirs(d)
 
     return d
 
 
 # Return a dictionary describing all of the image files on the source, indexed by the image name.
-def findSourceImages(src: str, downloadLockedOnly: bool) -> dict[str, 'Image']:
+def find_source_images(src: str, download_locked_only: bool) -> dict[str, 'Image']:
     global total_to_transfer, jpeg_count, motion_count, locked_file_count
     nearRollover = False
     rolloverOccurred = False
@@ -142,7 +142,6 @@ def findSourceImages(src: str, downloadLockedOnly: bool) -> dict[str, 'Image']:
     # Enumerate the image files on the source volume.
     for dirpath, _, files in os.walk(src):
         for f in files:
-
             # Ignore files that are unlikely to be camera image files,
             # including hidden files.
             if f.startswith("."):
@@ -150,54 +149,96 @@ def findSourceImages(src: str, downloadLockedOnly: bool) -> dict[str, 'Image']:
             fparts = f.split(".")
             if len(fparts) != 2:
                 continue
-            srcFilename = fparts[0]
-            file_type = fparts[-1]
+            src_filename = fparts[0]
+            extension = fparts[-1]
             # Remove underscores used by Nikon
-            dstFilename = srcFilename.replace("_", "")
-            imageName = dstFilename.upper()
-            if file_type.upper() not in STILL_FILE_TYPES + MOTION_FILE_TYPES:
+            dst_filename = src_filename.replace("_", "")
+            image_name = dst_filename.upper()
+            if extension.upper() not in still_file_types + motion_file_types:
                 continue
 
             # If write protect was set on an image by the camera, it will appear on
             # MacOS as the user-immutable flag.  FWIW, this flag can be seen using
             # "ls -lhdO".  On Windows, we just look for read-only.
-            srcFullPath = os.path.join(dirpath, srcFilename + "." + file_type)
-            statInfo = os.stat(srcFullPath)
+            src_full_path = os.path.join(dirpath, src_filename + "." + extension)
+            stat_info = os.stat(src_full_path)
             if 'darwin' in sys.platform:
-                fileLocked = statInfo.st_flags & stat.UF_IMMUTABLE
+                file_locked = stat_info.st_flags & stat.UF_IMMUTABLE
             else:
-                fileLocked = not os.access(srcFullPath, os.W_OK)
+                file_locked = not os.access(src_full_path, os.W_OK)
 
             # Remember if the number part of the image name is getting near the rollover point.
-            nearRollover |= imageName[-4] == '9'
-            rolloverOccurred |= imageName[-4:] == "9999"
+            nearRollover |= image_name[-4] == '9'
+            rolloverOccurred |= image_name[-4:] == "9999"
 
             # If we're downloading only locked images, ignore all the rest.
-            if downloadLockedOnly and not fileLocked:
+            if download_locked_only and not file_locked:
                 continue
 
-            size = statInfo.st_size
+            size = stat_info.st_size
 
-            # Have we already seen a file for this image (with a different file type)?
+            # Have we already seen a file for this image (with a different extension)?
             try:
-                image = images_db[imageName]
-                if image.containsFileType(file_type):
-                    raise CLIError(
-                        f"Source contains more than one {srcFilename}.{file_type}")
-                image.addFileType(file_type)
+                image = images_db[image_name]
+                if image.contains_file_extension(extension):
+                    raise CliError(
+                        f"Source contains more than one {src_filename}.{extension}")
+                image.add_file_extension(extension)
                 image.size += size
             except KeyError:
-                images_db[imageName] = Image(
-                    srcFilename, dirpath, file_type, bool(fileLocked), size, dstFilename)
+                images_db[image_name] = Image(
+                    src_filename, dirpath, extension, bool(file_locked), size, dst_filename)
 
             total_to_transfer += size
 
-            if file_type.upper() in JPEG_FILE_TYPES:
+            if extension.upper() in jpeg_file_types:
                 jpeg_count += 1
-            elif file_type.upper() in MOTION_FILE_TYPES:
+            elif extension.upper() in motion_file_types:
                 motion_count += 1
 
-            if fileLocked:
+            if file_locked:
+                locked_file_count += 1
+
+            # If write protect was set on an image by the camera, it will appear on
+            # MacOS as the user-immutable flag.  FWIW, this flag can be seen using
+            # "ls -lhdO".  On Windows, we just look for read-only.
+            src_full_path = os.path.join(dirpath, src_filename + "." + extension)
+            stat_info = os.stat(src_full_path)
+            if 'darwin' in sys.platform:
+                file_locked = stat_info.st_flags & stat.UF_IMMUTABLE
+            else:
+                file_locked = not os.access(src_full_path, os.W_OK)
+
+            # Remember if the number part of the image name is getting near the rollover point.
+            nearRollover |= image_name[-4] == '9'
+            rolloverOccurred |= image_name[-4:] == "9999"
+
+            # If we're downloading only locked images, ignore all the rest.
+            if download_locked_only and not file_locked:
+                continue
+
+            size = stat_info.st_size
+
+            # Have we already seen a file for this image (with a different extension)?
+            try:
+                image = images_db[image_name]
+                if image.contains_file_extension(extension):
+                    raise CliError(
+                        f"Source contains more than one {src_filename}.{extension}")
+                image.add_file_extension(extension)
+                image.size += size
+            except KeyError:
+                images_db[image_name] = Image(
+                    src_filename, dirpath, extension, bool(file_locked), size, dst_filename)
+
+            total_to_transfer += size
+
+            if extension.upper() in jpeg_file_types:
+                jpeg_count += 1
+            elif extension.upper() in motion_file_types:
+                motion_count += 1
+
+            if file_locked:
                 locked_file_count += 1
 
     if jpeg_count > 0:
@@ -207,7 +248,7 @@ def findSourceImages(src: str, downloadLockedOnly: bool) -> dict[str, 'Image']:
     print(f"Total size of files to transfer: {total_to_transfer / 1_073_741_824:.2f} GB.")
     if locked_file_count > 0:
         print(f"{locked_file_count} files are locked.")
-    elif downloadLockedOnly:
+    elif download_locked_only:
         print("WARNING:  Downloading locked files only, but no locked files found.")
     if rolloverOccurred:
         print("WARNING:  Image numbers rolled over!")
@@ -222,31 +263,26 @@ def findSourceImages(src: str, downloadLockedOnly: bool) -> dict[str, 'Image']:
 # ?? the images dictionary.
 # ?? Except a file might be a duplicate in one destination directory, and not another.
 # ?? Issue #3:  This doesn't properly handle source files with multiple extensions which are only partially copied.
-def lookForDuplicates(images: dict[str, 'Image'], dst: str) -> list[str]:
+def look_for_duplicates(images: dict[str, 'Image'], dst: str) -> list[str]:
     duplicates = []
 
-    for imageName in iter(images_db):
-        for file_type in images_db[imageName].file_types:
-            dstFullPath = os.path.join(
-                dst, images_db[imageName].dstFilename + "." + file_type)
-            if os.path.exists(dstFullPath):
-                srcFullPath = os.path.join(
-                    images_db[imageName].srcPath, images_db[imageName].srcFilename + "." + file_type)
-                if (os.stat(dstFullPath).st_size == os.stat(srcFullPath).st_size):
-                    duplicates.append(imageName)
+    for image_name in iter(images_db):
+        for extension in images_db[image_name].extensions:
+            dst_full_path = os.path.join(
+                dst, images_db[image_name].dst_filename + "." + extension)
+            if os.path.exists(dst_full_path):
+                src_full_path = os.path.join(
+                    images_db[image_name].src_path, images_db[image_name].src_filename + "." + extension)
+                if (os.stat(dst_full_path).st_size == os.stat(src_full_path).st_size):
+                    duplicates.append(image_name)
 
     return duplicates
 
 
 # Tweak the AbsoluteETA widget to only show the time part of the time and date.
-class CustomAbsoluteETA(AbsoluteETA):
+class CustomAbsoluteEta(AbsoluteETA):
 
-    def __call__(
-        self,
-        progress: ProgressBarMixinBase,
-        data: Data,
-        format: types.Optional[str] = None,
-    ) -> str:
+    def __call__(self, progress, data, format=None):
         eta = super().__call__(progress, data, format)
         eta = str(data['eta'])
         return 'ETA: %s' % eta[-8:]
@@ -254,10 +290,10 @@ class CustomAbsoluteETA(AbsoluteETA):
 
 class ProgressTracker():
 
-    def __init__(self, totalToTransfer):
-        self.alreadyCopied = 0
-        self.bar = ProgressBar(max_value=totalToTransfer, widgets=[AdaptiveTransferSpeed(), " ", GranularBar(), " ",
-                        CustomAbsoluteETA(format='ETA: %(eta)s', format_finished='ETA: %(ow)s', format_not_started='ETA: --:--')])
+    def __init__(self, total_to_transfer):
+        self.already_copied = 0
+        self.bar = ProgressBar(max_value=total_to_transfer, widgets=[AdaptiveTransferSpeed(), " ", GranularBar(), " ",
+                        CustomAbsoluteEta(format='ETA: %(eta)s', format_finished='ETA: %(ow)s', format_not_started='ETA: --:--')])
 
     def __enter__(self):
         return self
@@ -266,15 +302,15 @@ class ProgressTracker():
         pass
 
     def update(self, copied):
-        self.alreadyCopied += copied
-        self.bar.update(self.alreadyCopied)
+        self.already_copied += copied
+        self.bar.update(self.already_copied)
 
 
 # Copy a file while updating progress on the screen.
 # We originally used shutil.copy2(), which takes advantage of OS-specific optimizations,
 # but doesn't provide progress feedback.
 # Tests of this version on Mac OS with an external flash drive showed equivalent performance.
-def copy_with_progress(src_file: str, dst_file: str, imageName: str, tracker) -> None:
+def copy_with_progress(src_file: str, dst_file: str, image_name: str, tracker) -> None:
     try:
         with open(src_file, 'rb') as src, open(dst_file, 'wb') as dst:
             while True:
@@ -294,54 +330,54 @@ def copy_with_progress(src_file: str, dst_file: str, imageName: str, tracker) ->
 
 
 # Copy the image files from the source to the destination and create a XMP sidecar file for each.
-def copyImageFiles(
+def copy_image_files(
     images: dict[str, 'Image'],
-    destinationDirs: list[str],
+    destination_dirs: list[str],
     skips: list[list[str]],
     description: str,
-    downloadLockedOnly: bool = False,
+    download_locked_only: bool = False,
     delete: bool = False
 ) -> None:
     
-    alreadyCopied = 0
-    with ProgressTracker(len(destinationDirs) * total_to_transfer) as tracker:
-        for imageName in iter(images_db):
-            image = images_db[imageName]
-            for dest, skip in zip(destinationDirs, skips):
-                for file_type in image.file_types:
-                    srcFullpath = os.path.join(
-                        image.srcPath, image.srcFilename + "." + file_type)
-                    dstFullPath = os.path.join(dest, image.dstFilename + "." + file_type)
+    already_copied = 0
+    with ProgressTracker(len(destination_dirs) * total_to_transfer) as tracker:
+        for image_name in iter(images_db):
+            image = images_db[image_name]
+            for dest, skip in zip(destination_dirs, skips):
+                for extension in image.extensions:
+                    src_full_path = os.path.join(
+                        image.src_path, image.src_filename + "." + extension)
+                    dst_full_path = os.path.join(dest, image.dst_filename + "." + extension)
 
                     # Copy the image file unless it's a duplicate.  If we're only copying locked files, skip unlocked files.
-                    if imageName not in skip:
-                        if not downloadLockedOnly or image.fileLocked:
+                    if image_name not in skip:
+                        if not download_locked_only or image.file_locked:
                             copy_with_progress(
-                                srcFullpath, dstFullPath, imageName, tracker)
+                                src_full_path, dst_full_path, image_name, tracker)
 
                     # If write protect was set on the source file, clear it on the destination.  We'll
                     # treat it specially below when we create the XMP sidecar file.  If we're going
                     # to delete the source file, also clear write protect on it.
                     # ?? This is slightly unsafe, since we'll lose the locked indication on the source
                     # ?? if we crash before deleting it.
-                    if image.fileLocked:
+                    if image.file_locked:
                         if 'darwin' in sys.platform:
-                            os.chflags(dstFullPath, os.stat(
-                                dstFullPath).st_flags & ~stat.UF_IMMUTABLE)
+                            os.chflags(dst_full_path, os.stat(
+                                dst_full_path).st_flags & ~stat.UF_IMMUTABLE)
                             if delete:
-                                os.chflags(srcFullpath, os.stat(
-                                    srcFullpath).st_flags & ~stat.UF_IMMUTABLE)
+                                os.chflags(src_full_path, os.stat(
+                                    src_full_path).st_flags & ~stat.UF_IMMUTABLE)
                         else:
-                            os.chmod(dstFullPath, stat.S_IWRITE)
+                            os.chmod(dst_full_path, stat.S_IWRITE)
                             if delete:
-                                os.chmod(srcFullpath, stat.S_IWRITE)
+                                os.chmod(src_full_path, stat.S_IWRITE)
 
                     # Create the sidecar file for stills only.
                     # ?? Use multi-line string constant?
                     # ?? The write protect part could be coded as:
-                    # ??      fileLocked and "Purple" or "None"
-                    if file_type.upper() in STILL_FILE_TYPES:
-                        xmp_label = "     xmp:Label=\"Purple\"\n" if image.fileLocked else ""
+                    # ??      file_locked and "Purple" or "None"
+                    if extension.upper() in still_file_types:
+                        xmp_label = "     xmp:Label=\"Purple\"\n" if image.file_locked else ""
                         xmp_content = f"""<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">
 <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">
 
@@ -359,59 +395,59 @@ def copyImageFiles(
 </rdf:RDF>
 </x:xmpmeta>
 """
-                        with open(os.path.join(dest, image.dstFilename + ".xmp"), "w") as sidecar:
+                        with open(os.path.join(dest, image.dst_filename + ".xmp"), "w") as sidecar:
                             sidecar.write(xmp_content)
-            alreadyCopied += image.size
+            already_copied += image.size
 
     sys.stdout.write("\n")      # Needed after progress bar output
     sys.stdout.flush()
 
 
 # Programmatic API to this module.  Returns name (not path) of destination directories.
-def doDownload(
-    destinationPaths: list[str],
+def do_download(
+    destination_paths: list[str],
     tag: str,
     description: str,
-    downloadLockedOnly: bool = False,
+    download_locked_only: bool = False,
     delete: bool = False,
     verbose: bool = False
 ) -> str:
 
     # Find the source volume.  We can only handle one.
-    sourceVols = findSourceVolume()
-    if (len(sourceVols) < 1):
-        raise CLIError("Could not find a DCF volume.")
-    if (len(sourceVols) > 1):
-        raise CLIError("More than one DCF volume found.")
-    sourceVol = sourceVols[0]
+    source_vols = find_source_volume()
+    if (len(source_vols) < 1):
+        raise CliError("Could not find a DCF volume.")
+    if (len(source_vols) > 1):
+        raise CliError("More than one DCF volume found.")
+    source_vol = source_vols[0]
 
     # Find image files on the source volume.
-    images = findSourceImages(sourceVol[1], downloadLockedOnly)
-    print(f"{len(images)} image files found on {sourceVol[0]}.")
+    images = find_source_images(source_vol[1], download_locked_only)
+    print(f"{len(images)} image files found on {source_vol[0]}.")
 
     # If we're supposed to delete the source images, make sure that we can.
-    if (delete and not os.access(sourceVol[1], os.W_OK)):
-        raise CLIError("Source volume is read-only and delete option is set.")
+    if (delete and not os.access(source_vol[1], os.W_OK)):
+        raise CliError("Source volume is read-only and delete option is set.")
 
     # Look for existing duplicates on the destination volumes.
     # DestinationDirs and duplicates are lists in the same order as the
-    # entries in destinationPaths.
-    destinationDirs = []
+    # entries in destination_paths.
+    destination_dirs = []
     duplicates = []
     today = datetime.date.today()
-    dirName = str(today.month) + "-" + str(today.day) + " " + tag
-    for destPath in destinationPaths:
+    dir_name = str(today.month) + "-" + str(today.day) + " " + tag
+    for dest_path in destination_paths:
 
         # Create the destination directory, if necessary.
-        destDir = createDestinationDir(destPath, dirName)
-        destinationDirs.append(destDir)
+        dest_dir = create_destination_dir(dest_path, dir_name)
+        destination_dirs.append(dest_dir)
 
         # Look for duplicate image files on the destination.
-        dups = lookForDuplicates(images, destDir)
+        dups = look_for_duplicates(images, dest_dir)
         duplicates.append(dups)
         if len(dups) > 0:
             print("%d image files already exist in \"%s\". " %
-                  (len(dups), destDir))
+                  (len(dups), dest_dir))
 
     # Copy the image files from the source to the destinations and create the sidecar files.
     # ?? Having matching tuples of destination directories and duplicate lists seems
@@ -420,8 +456,8 @@ def doDownload(
     # ?? We could also pass in the destination directory and duplicate list as a tuple.
     # On the other hand, this enables us to write all the destinations while each source
     # file is still open and in cache.
-    copyImageFiles(images, destinationDirs, duplicates,
-                   description, downloadLockedOnly, delete)
+    copy_image_files(images, destination_dirs, duplicates,
+                    description, download_locked_only, delete)
 
     # Flush Mac OS disk caches to guard against external disks being disconnected, power failures, etc.
     # We assume that Windows disks are configured to flush to hardware after every write.
@@ -430,24 +466,24 @@ def doDownload(
 
     # Delete the source files.
     if delete:
-        print(f"Deleting images from {sourceVol[0]}.\n")
-        shutil.rmtree(sourceVol[1])
+        print(f"Deleting images from {source_vol[0]}.\n")
+        shutil.rmtree(source_vol[1])
 
     # On Mac OS, unmount the source volume.  We assume that Windows disks are configured to
     # flush to hardware after every write.
     if 'darwin' in sys.platform:
         subprocess.run(["diskutil", "unmount", os.path.join(
-            "/Volumes", sourceVol[0])], check=True)
+            "/Volumes", source_vol[0])], check=True)
         ejected = True
         if ejected:
-            print(f"All images successfully downloaded and {sourceVol[0]} ejected.")
+            print(f"All images successfully downloaded and {source_vol[0]} ejected.")
         else:
              print(
-                 f"ERROR - All images successfully downloaded, but could not eject {sourceVol[0]}!")
+                 f"ERROR - All images successfully downloaded, but could not eject {source_vol[0]}!")
     else:
         print("All images successfully downloaded.")
 
-    return dirName
+    return dir_name
 
 
 #  CLI Interface
@@ -489,7 +525,7 @@ USAGE
                             help="Tag used as destination directory name. [default: %(default)s]")
         parser.add_argument("-d", "--description", dest="description",
                             help="Description saved in each photo's sidecar.")
-        parser.add_argument("-L", "--locked-only", dest="downloadLockedOnly",
+        parser.add_argument("-L", "--locked-only", dest="download_locked_only",
                             action='store_true', help="Only download locked files.")
         parser.add_argument("-D", "--delete", dest="delete", action='store_true',
                             help="Delete files from card after successful download.")
@@ -516,15 +552,15 @@ USAGE
                 print(
                     f"Error:  Destination path \"{path}\" doesn't exist.")
                 return 2
-        if args.downloadLockedOnly and args.delete:
+        if args.download_locked_only and args.delete:
             print("Error:  Delete and locked-only options are mutually exclusive.")
             return 2
 
         if 'darwin' in sys.platform:
             caffeinateProcess = subprocess.Popen(('caffeinate', '-i'))
 
-        dirName = doDownload(args.destinations, args.tag, args.description,
-                             args.downloadLockedOnly, args.delete, args.verbose)
+        dir_name = do_download(args.destinations, args.tag, args.description,
+                      args.download_locked_only, args.delete, args.verbose)
 
         if caffeinateProcess != None:
             caffeinateProcess.terminate()
@@ -533,20 +569,20 @@ USAGE
         if args.automate:
             if 'darwin' in sys.platform:
                 os.system("open -a \"" + LIGHTROOM_APP + "\" \"" +
-                          os.path.join(args.destinations[0], dirName) + "\"")
+                          os.path.join(args.destinations[0], dir_name) + "\"")
             else:
                 os.system("start \"\" \"" + LIGHTROOM_APP + "\" \"" +
-                          os.path.join(args.destinations[0], dirName) + "\"")
+                          os.path.join(args.destinations[0], dir_name) + "\"")
 
         # Launch DaVinci Resolve to ingest all motion clips.  This will run asynchronously.
         if args.automateResolve:
             print(f"Ingesting motion to Resolve project {args.tag}...")
             today = datetime.date.today()
-            dirName = str(today.month) + "-" + str(today.day) + " " + args.tag
-            dayStamp = str(today.month) + "-" + str(today.day)
-            fullPath = os.path.join(args.destinations[0], dirName)
+            dir_name = str(today.month) + "-" + str(today.day) + " " + args.tag
+            day_stamp = str(today.month) + "-" + str(today.day)
+            full_path = os.path.join(args.destinations[0], dir_name)
             try:
-                ingestMotionClips(args.tag, dayStamp, args.description, fullPath)
+                ingestMotionClips(args.tag, day_stamp, args.description, full_path)
             except ResolveError as e:
                 print("Error: Could not ingest motion files to Resolve.")
                 print(f"Error: {e}")
@@ -560,10 +596,9 @@ USAGE
         if caffeinateProcess != None:
             print("Killing caffeinate")
             caffeinateProcess.terminate()
-        ### handle keyboard interrupt ###
         return 2
     
-    except CLIError as e:
+    except CliError as e:
         print(e)
         if caffeinateProcess != None:
             caffeinateProcess.terminate()
