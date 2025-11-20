@@ -74,7 +74,13 @@ def find_source_volume() -> list[tuple[str, str]]:
 
 # Return a dictionary describing all of the image files on the source, indexed by the image name.
 def find_source_images(src: str, download_locked_only: bool) -> dict[str, 'Source_Image']:
-    global total_to_transfer, file_type_count, locked_file_count
+    global total_to_transfer, file_type_count, locked_file_count, images_db, total_images
+    # Reset global variables for each scan
+    images_db = {}
+    total_images = 0
+    file_type_count = {}
+    locked_file_count = 0
+    total_to_transfer = 0
     nearRollover = False
     rolloverOccurred = False
 

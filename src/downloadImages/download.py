@@ -50,9 +50,9 @@ def create_destination_dir(dest_path: str, name: str) -> str:
 
 class ProgressTracker():
 
-    def __init__(self, total_to_transfer):
+    def __init__(self, total):
         self.already_copied = 0
-        self.bar = ProgressBar(max_value=total_to_transfer, widgets=[AdaptiveTransferSpeed(), " ", GranularBar(), " ",
+        self.bar = ProgressBar(max_value=total, widgets=[AdaptiveTransferSpeed(), " ", GranularBar(), " ",
                         CustomAbsoluteEta(format='ETA: %(eta)s', format_finished='ETA: %(ow)s', format_not_started='ETA: --:--')])
 
     def __enter__(self):
