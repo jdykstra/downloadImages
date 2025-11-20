@@ -7,7 +7,7 @@ This Python application downloads images and videos from DCF volumes (SD cards) 
 
 ### Core Files
 - **`downloadImages/downloadImages.py`**: Main CLI application with download logic
-- **`downloadImages/python_get_resolve.py`**: DaVinci Resolve API integration wrapper
+- **`downloadImages/python_get_resolve.py`**: DaVinci Resolve API integration wrapper (**Do not modify this file; it is supplied by Blackmagic Design.**)
 - **`requirements.txt`**: Single dependency (progressbar2)
 
 ### Data Flow

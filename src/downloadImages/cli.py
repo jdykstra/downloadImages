@@ -13,8 +13,6 @@ downloadImages -- Download images from a DCF volume such as an SD card.
    
 '''
 
-__license__ = "MIT"
-__contact__ = "jdykstra72@gmail.com"
 
 '''
     We try to be filesystem-case-sensitive-agnostic.  The case of source filenames and extensions is preserved in
@@ -37,62 +35,31 @@ import os
 from builtins import str
 from progressbar.widgets import Data
 from builtins import zip
+from .sourceimages import Source_Image, find_source_volume, find_source_images, images_db, file_type_count, locked_file_count, STILL_FILE_TYPES, MOTION_FILE_TYPES, total_to_transfer
+from .download import do_download
 
-__all__ = ['doDownload']
 __version__ = "2.0"
 __title__ = "downloadImages"
 __author__ = "John Dykstra"
 __copyright__ = "2017-2025 John Dykstra. All rights reserved."
+__license__ = "MIT"
+__contact__ = "jdykstra72@gmail.com"
+
 
 DEBUG: bool = False
 if DEBUG:
     import pdb
     import traceback
 
-# File-global source image database and summary variables
-images_db: dict[str, 'Image'] = {}
-total_images: int = 0
-jpeg_count: int = 0
-video_count: int = 0
-locked_file_count: int = 0
-total_to_transfer: int = 0
-
-JPEG_EXTENSIONS: list[str] = ['JPG']
-IMAGE_EXTENSIONS: list[str] = JPEG_EXTENSIONS + ['NEF']
-VIDEO_EXTENSIONS: list[str] = ['MOV', 'MP4', 'NEV']
 
 CLEOL: str = "\033[K"  # Clear to end of line ANSI escape sequence
 
 
-# Class representing a single image.  That image may have more than one associated image file, such as a JPEG and a RAW file.
-class Image:
-    def __init__(self, srcFilename: str, srcPath: str, extension: str, fileLocked: bool, size: int, dstFilename: str) -> None:
-        self.srcFilename: str = srcFilename
-        self.srcPath: str = srcPath
-        self.extensions: list[str] = [extension]
-        self.fileLocked: bool = fileLocked
-        self.size: int = size
-        self.dstFilename: str = dstFilename
-
-    def addFileExtension(self, extension: str) -> None:
-        self.extensions.append(extension)
-
-    def containsFileExtension(self, extension: str) -> bool:
-        return extension in self.extensions
-
-    def __str__(self) -> str:
-        return (f"ImageFile: srcFilename = {self.srcFilename}, srcPath = {self.srcPath}, extensions = {self.extensions}, "
-                f"fileLocked = {self.fileLocked}, size = {self.size}, dstFilename = {self.dstFilename}")
-
-    def __repr__(self) -> str:
-        return self.__str__()
-
-
-class CLIError(Exception):
+class CliError(Exception):
     '''Generic exception to raise and log different fatal errors.'''
 
     def __init__(self, msg):
-        super(CLIError).__init__(type(self))
+        super().__init__(type(self))
         self.msg = "ERROR: %s" % msg
 
     def __str__(self):
@@ -102,142 +69,29 @@ class CLIError(Exception):
         return self.msg
 
 
-# Find potential source DCF volumes, returning a list of (name, path) tuples.
-def findSourceVolume() -> list[tuple[str, str]]:
-    vollist = []
-    if 'darwin' in sys.platform:
-        for d in os.listdir("/Volumes"):
-            if not os.path.isdir(os.path.join("/Volumes", d)):
-                continue
-            tp = os.path.join(os.path.join("/Volumes", d), "DCIM")
-            if os.path.isdir(tp):
-                vollist.append((d, tp))
-    else:
-        dl = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-        drives = ['%s:' % d for d in dl if os.path.exists('%s:' % d)]
-        for d in drives:
-            tp = os.path.join(d, "DCIM")
-            if os.path.isdir(tp):
-                vollist.append((d, tp))
-    return vollist
-
-
-# Create the destination directory, returning a path to it.
-def createDestinationDir(destPath: str, name: str) -> str:
-    d = os.path.join(destPath, name)
-
-    # If the destination directory already exists, accept that silently.
-    if not os.path.isdir(d):
-         os.makedirs(d)
-
-    return d
-
-
-# Return a dictionary describing all of the image files on the source, indexed by the image name.
-def findSourceImages(src: str, downloadLockedOnly: bool) -> dict[str, 'Image']:
-    global total_to_transfer, jpeg_count, video_count, locked_file_count
-    nearRollover = False
-    rolloverOccurred = False
-
-    # Enumerate the image files on the source volume.
-    for dirpath, _, files in os.walk(src):
-        for f in files:
-
-            # Ignore files that are unlikely to be camera image files,
-            # including hidden files.
-            if f.startswith("."):
-                continue
-            fparts = f.split(".")
-            if len(fparts) != 2:
-                continue
-            srcFilename = fparts[0]
-            extension = fparts[-1]
-            # Remove underscores used by Nikon
-            dstFilename = srcFilename.replace("_", "")
-            imageName = dstFilename.upper()
-            if extension.upper() not in IMAGE_EXTENSIONS + VIDEO_EXTENSIONS:
-                continue
-
-            # If write protect was set on an image by the camera, it will appear on
-            # MacOS as the user-immutable flag.  FWIW, this flag can be seen using
-            # "ls -lhdO".  On Windows, we just look for read-only.
-            srcFullPath = os.path.join(dirpath, srcFilename + "." + extension)
-            statInfo = os.stat(srcFullPath)
-            if 'darwin' in sys.platform:
-                fileLocked = statInfo.st_flags & stat.UF_IMMUTABLE
-            else:
-                fileLocked = not os.access(srcFullPath, os.W_OK)
-
-            # Remember if the number part of the image name is getting near the rollover point.
-            nearRollover |= imageName[-4] == '9'
-            rolloverOccurred |= imageName[-4:] == "9999"
-
-            # If we're downloading only locked images, ignore all the rest.
-            if downloadLockedOnly and not fileLocked:
-                continue
-
-            size = statInfo.st_size
-
-            # Have we already seen a file for this image (with a different extension)?
-            try:
-                image = images_db[imageName]
-                if image.containsFileExtension(extension):
-                    raise CLIError(
-                        f"Source contains more than one {srcFilename}.{extension}")
-                image.addFileExtension(extension)
-                image.size += size
-            except KeyError:
-                images_db[imageName] = Image(
-                    srcFilename, dirpath, extension, bool(fileLocked), size, dstFilename)
-
-            total_to_transfer += size
-
-            if extension.upper() in JPEG_EXTENSIONS:
-                jpeg_count += 1
-            elif extension.upper() in VIDEO_EXTENSIONS:
-                video_count += 1
-
-            if fileLocked:
-                locked_file_count += 1
-
-    if jpeg_count > 0:
-        print(f"WARNING:  {jpeg_count} JPEG files found!")
-    if video_count > 0:
-        print(f"{video_count} video files found.")
-    print(f"Total size of files to transfer: {total_to_transfer / 1_073_741_824:.2f} GB.")
-    if locked_file_count > 0:
-        print(f"{locked_file_count} files are locked.")
-    elif downloadLockedOnly:
-        print("WARNING:  Downloading locked files only, but no locked files found.")
-    if rolloverOccurred:
-        print("WARNING:  Image numbers rolled over!")
-    elif nearRollover:
-        print("WARNING:  Image numbers are nearing the rollover point!")
-
-    return images_db
-
 
 # Return a list of files already in a destination directory.
 # ?? Too complex.  Either set a "skip" key in the per-image dictionary, or delete the per-image dictionary from
 # ?? the images dictionary.
 # ?? Except a file might be a duplicate in one destination directory, and not another.
 # ?? Issue #3:  This doesn't properly handle source files with multiple extensions which are only partially copied.
-def lookForDuplicates(images: dict[str, 'Image'], dst: str) -> list[str]:
+def look_for_duplicates(images: dict[str, 'Source_Image'], dst: str) -> list[str]:
     duplicates = []
 
-    for imageName in iter(images_db):
-        for ext in images_db[imageName].extensions:
-            dstFullPath = os.path.join(
-                dst, images_db[imageName].dstFilename + "." + ext)
-            if os.path.exists(dstFullPath):
-                srcFullPath = os.path.join(
-                    images_db[imageName].srcPath, images_db[imageName].srcFilename + "." + ext)
-                if (os.stat(dstFullPath).st_size == os.stat(srcFullPath).st_size):
-                    duplicates.append(imageName)
+    for image_name in iter(images_db):
+        for extension in images_db[image_name].extensions:
+            dst_full_path = os.path.join(
+                dst, images_db[image_name].dst_filename + "." + extension)
+            if os.path.exists(dst_full_path):
+                src_full_path = os.path.join(
+                    images_db[image_name].src_path, images_db[image_name].src_filename + "." + extension)
+                if (os.stat(dst_full_path).st_size == os.stat(src_full_path).st_size):
+                    duplicates.append(image_name)
 
     return duplicates
 
 
+<<<<<<< HEAD
 # Tweak the AbsoluteETA widget to only show the time part of the time and date.
 class CustomAbsoluteETA(AbsoluteETA):
 
@@ -450,6 +304,8 @@ def doDownload(
     return dirName
 
 
+=======
+>>>>>>> b013b79ad94dc5d6175f809c17450a1f062d1586
 #  CLI Interface
 def main(argv: list[str] | None = None) -> int:
 
@@ -489,14 +345,14 @@ USAGE
                             help="Tag used as destination directory name. [default: %(default)s]")
         parser.add_argument("-d", "--description", dest="description",
                             help="Description saved in each photo's sidecar.")
-        parser.add_argument("-L", "--locked-only", dest="downloadLockedOnly",
+        parser.add_argument("-L", "--locked-only", dest="download_locked_only",
                             action='store_true', help="Only download locked files.")
         parser.add_argument("-D", "--delete", dest="delete", action='store_true',
                             help="Delete files from card after successful download.")
         parser.add_argument("-a", "--automate", dest="automate",
                             action='store_true', help="Import all images into Lightroom.")
         parser.add_argument("-r", "--resolve", dest="automateResolve",
-                            action='store_true', help="Import all video clips into DaVinci Resolve.")
+                    action='store_true', help="Import all motion clips into DaVinci Resolve.")
         parser.add_argument('-V', '--version', action='version',
                             version=program_version_message)
         parser.add_argument("destinations", nargs='+',
@@ -516,15 +372,15 @@ USAGE
                 print(
                     f"Error:  Destination path \"{path}\" doesn't exist.")
                 return 2
-        if args.downloadLockedOnly and args.delete:
+        if args.download_locked_only and args.delete:
             print("Error:  Delete and locked-only options are mutually exclusive.")
             return 2
 
         if 'darwin' in sys.platform:
             caffeinateProcess = subprocess.Popen(('caffeinate', '-i'))
 
-        dirName = doDownload(args.destinations, args.tag, args.description,
-                             args.downloadLockedOnly, args.delete, args.verbose)
+        dir_name = do_download(args.destinations, args.tag, args.description,
+                      args.download_locked_only, args.delete, args.verbose)
 
         if caffeinateProcess != None:
             caffeinateProcess.terminate()
@@ -533,25 +389,25 @@ USAGE
         if args.automate:
             if 'darwin' in sys.platform:
                 os.system("open -a \"" + LIGHTROOM_APP + "\" \"" +
-                          os.path.join(args.destinations[0], dirName) + "\"")
+                          os.path.join(args.destinations[0], dir_name) + "\"")
             else:
                 os.system("start \"\" \"" + LIGHTROOM_APP + "\" \"" +
-                          os.path.join(args.destinations[0], dirName) + "\"")
+                          os.path.join(args.destinations[0], dir_name) + "\"")
 
         # Launch DaVinci Resolve to ingest all motion clips.  This will run asynchronously.
         if args.automateResolve:
-            print(f"Ingesting video to Resolve project {args.tag}...")
+            print(f"Ingesting motion to Resolve project {args.tag}...")
             today = datetime.date.today()
-            dirName = str(today.month) + "-" + str(today.day) + " " + args.tag
-            dayStamp = str(today.month) + "-" + str(today.day)
-            fullPath = os.path.join(args.destinations[0], dirName)
+            dir_name = str(today.month) + "-" + str(today.day) + " " + args.tag
+            day_stamp = str(today.month) + "-" + str(today.day)
+            full_path = os.path.join(args.destinations[0], dir_name)
             try:
-                ingestMotionClips(args.tag, dayStamp, args.description, fullPath)
+                ingestMotionClips(args.tag, day_stamp, args.description, full_path)
             except ResolveError as e:
                 print("Error: Could not ingest motion files to Resolve.")
                 print(f"Error: {e}")
                 return 1
-            print(f"Ingesting video completed.")
+            print(f"Ingesting motion completed.")
 
         return 0
         
@@ -560,10 +416,9 @@ USAGE
         if caffeinateProcess != None:
             print("Killing caffeinate")
             caffeinateProcess.terminate()
-        ### handle keyboard interrupt ###
         return 2
     
-    except CLIError as e:
+    except CliError as e:
         print(e)
         if caffeinateProcess != None:
             caffeinateProcess.terminate()
@@ -584,3 +439,6 @@ USAGE
         if DEBUG:
             raise(e)       
         return 2
+
+if __name__ == "__main__":
+    sys.exit(main())
