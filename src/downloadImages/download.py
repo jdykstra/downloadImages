@@ -180,7 +180,7 @@ verbose: bool = False
 
     # Find image files on the source volume.
     images = find_source_images(source_vol[1], download_locked_only)
-    print(f"{len(images)} image files found on {source_vol[0]}.")
+    print(f"{len(images)} images (potentially in multiple files) found on {source_vol[0]}.")
 
     # If we're supposed to delete the source images, make sure that we can.
     if (delete and not os.access(source_vol[1], os.W_OK)):
