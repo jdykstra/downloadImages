@@ -4,16 +4,6 @@ import stat
 import sys
 from dataclasses import dataclass, field
 
-@dataclass
-class ImageDB:
-    images_db: dict[str, 'Source_Image'] = field(default_factory=dict)
-    total_images: int = 0
-    file_type_count: dict[str, int] = field(default_factory=dict)
-    locked_file_count: int = 0
-    total_to_transfer: int = 0
-
-image_db = ImageDB()
-
 JPEG_FILE_TYPES: list[str] = ['JPG']
 STILL_FILE_TYPES: list[str] = JPEG_FILE_TYPES + ['NEF']
 MOTION_FILE_TYPES: list[str] = ['MOV', 'MP4', 'NEV']
@@ -33,7 +23,16 @@ class CliError(Exception):
         return self.msg
 
 
-class Source_Image:
+@dataclass
+class ImageDB:
+    db: dict[str, 'SourceImage'] = field(default_factory=dict)
+    total_images: int = 0
+    file_type_count: dict[str, int] = field(default_factory=dict)
+    locked_file_count: int = 0
+    total_to_transfer: int = 0
+
+
+class SourceImage:
     def __init__(self, src_filename: str, src_path: str, extension: str, file_locked: bool, size: int, dst_filename: str) -> None:
         self.src_filename: str = src_filename
         self.src_path: str = src_path
@@ -78,9 +77,9 @@ def find_source_volume() -> list[tuple[str, str]]:
 
 
 # Return a dictionary describing all of the image files on the source, indexed by the image name.
-def find_source_images(src: str, download_locked_only: bool) -> dict[str, 'Source_Image']:
-    # Reset global variables for each scan
-    image_db.images_db = {}
+def find_source_images(src: str, download_locked_only: bool) -> ImageDB:
+    image_db = ImageDB()
+    image_db.db = {}
     image_db.total_images = 0
     image_db.file_type_count = {}
     image_db.locked_file_count = 0
@@ -129,14 +128,14 @@ def find_source_images(src: str, download_locked_only: bool) -> dict[str, 'Sourc
 
             # Have we already seen a file for this image (with a different extension)?
             try:
-                image = image_db.images_db[image_name]
+                image = image_db.db[image_name]
                 if image.contains_file_extension(extension):
                     raise CliError(
                         f"Source contains more than one {src_filename}.{extension}")
                 image.add_file_extension(extension)
                 image.size += size
             except KeyError:
-                image_db.images_db[image_name] = Source_Image(
+                image_db.db[image_name] = SourceImage(
                     src_filename, dirpath, extension, bool(file_locked), size, dst_filename)
 
             image_db.total_to_transfer += size
@@ -162,5 +161,5 @@ def find_source_images(src: str, download_locked_only: bool) -> dict[str, 'Sourc
     elif nearRollover:
         print("WARNING:  Image numbers are nearing the rollover point!")
 
-    return image_db.images_db
+    return image_db
 

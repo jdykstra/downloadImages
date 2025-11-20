@@ -6,7 +6,7 @@ import shutil
 import datetime
 import subprocess
 from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
-from .sourceimages import STILL_FILE_TYPES, image_db, Source_Image, CliError, find_source_volume, find_source_images
+from .sourceimages import STILL_FILE_TYPES, SourceImage, CliError, find_source_volume, find_source_images
 
 
 # Return a list of files already in a destination directory.
@@ -14,16 +14,16 @@ from .sourceimages import STILL_FILE_TYPES, image_db, Source_Image, CliError, fi
 # ?? the images dictionary.
 # ?? Except a file might be a duplicate in one destination directory, and not another.
 # ?? Issue #3:  This doesn't properly handle source files with multiple extensions which are only partially copied.
-def look_for_duplicates(images: dict[str, 'Source_Image'], dst: str) -> list[str]:
+def look_for_duplicates(images: dict[str, 'SourceImage'], dst: str) -> list[str]:
     duplicates = []
 
-    for image_name in iter(image_db.images_db):
-        for extension in image_db.images_db[image_name].extensions:
+    for image_name in iter(images):
+        for extension in images[image_name].extensions:
             dst_full_path = os.path.join(
-                dst, image_db.images_db[image_name].dst_filename + "." + extension)
+                dst, images[image_name].dst_filename + "." + extension)
             if os.path.exists(dst_full_path):
                 src_full_path = os.path.join(
-                    image_db.images_db[image_name].src_path, image_db.images_db[image_name].src_filename + "." + extension)
+                    images[image_name].src_path, images[image_name].src_filename + "." + extension)
                 if (os.stat(dst_full_path).st_size == os.stat(src_full_path).st_size):
                     duplicates.append(image_name)
 
@@ -91,18 +91,19 @@ def copy_with_progress(src_file: str, dst_file: str, image_name: str, tracker) -
 
 # Copy the image files from the source to the destination and create a XMP sidecar file for each.
 def copy_image_files(
-    images: dict[str, 'Source_Image'],
+    images: dict[str, 'SourceImage'],
     destination_dirs: list[str],
     skips: list[list[str]],
     description: str,
+    total_to_transfer: int,
     download_locked_only: bool = False,
     delete: bool = False
 ) -> None:
 
     already_copied = 0
-    with ProgressTracker(len(destination_dirs) * image_db.total_to_transfer) as tracker:
-        for image_name in iter(image_db.images_db):
-            image = image_db.images_db[image_name]
+    with ProgressTracker(len(destination_dirs) * total_to_transfer) as tracker:
+        for image_name in iter(images):
+            image = images[image_name]
             for dest, skip in zip(destination_dirs, skips):
                 for extension in image.extensions:
                     src_full_path = os.path.join(
@@ -159,87 +160,5 @@ def copy_image_files(
     sys.stdout.write("\n")      # Needed after progress bar output
     sys.stdout.flush()
 
-
-# Programmatic API to this module.  Returns name (not path) of destination directories.
-
-def do_download(
-destination_paths: list[str],
-tag: str,
-description: str,
-download_locked_only: bool = False,
-delete: bool = False,
-verbose: bool = False
-) -> str:
-    # Find the source volume.  We can only handle one.
-    source_vols = find_source_volume()
-    if (len(source_vols) < 1):
-        raise CliError("Could not find a DCF volume.")
-    if (len(source_vols) > 1):
-        raise CliError("More than one DCF volume found.")
-    source_vol = source_vols[0]
-
-    # Find image files on the source volume.
-    images = find_source_images(source_vol[1], download_locked_only)
-    print(f"{len(images)} images (potentially in multiple files) found on {source_vol[0]}.")
-
-    # If we're supposed to delete the source images, make sure that we can.
-    if (delete and not os.access(source_vol[1], os.W_OK)):
-        raise CliError("Source volume is read-only and delete option is set.")
-
-    # Look for existing duplicates on the destination volumes.
-    # DestinationDirs and duplicates are lists in the same order as the
-    # entries in destination_paths.
-    destination_dirs = []
-    duplicates = []
-    today = datetime.date.today()
-    dir_name = str(today.month) + "-" + str(today.day) + " " + tag
-    for dest_path in destination_paths:
-
-        # Create the destination directory, if necessary.
-        dest_dir = create_destination_dir(dest_path, dir_name)
-        destination_dirs.append(dest_dir)
-
-        # Look for duplicate image files on the destination.
-        dups = look_for_duplicates(images, dest_dir)
-        duplicates.append(dups)
-        if len(dups) > 0:
-            print("%d image files already exist in \"%s\". " %
-                    (len(dups), dest_dir))
-
-    # Copy the image files from the source to the destinations and create the sidecar files.
-    # ?? Having matching tuples of destination directories and duplicate lists seems
-    # ?? unnecessarily complex.  Why not call copyImageFiles() once for each destination
-    # ?? directory?
-    # ?? We could also pass in the destination directory and duplicate list as a tuple.
-    # On the other hand, this enables us to write all the destinations while each source
-    # file is still open and in cache.
-    copy_image_files(images, destination_dirs, duplicates,
-                    description, download_locked_only, delete)
-
-    # Flush Mac OS disk caches to guard against external disks being disconnected, power failures, etc.
-    # We assume that Windows disks are configured to flush to hardware after every write.
-    if 'darwin' in sys.platform:
-        subprocess.run(["sync"], check=True)
-
-    # Delete the source files.
-    if delete:
-        print(f"Deleting images from {source_vol[0]}.\n")
-        shutil.rmtree(source_vol[1])
-
-    # On Mac OS, unmount the source volume.  We assume that Windows disks are configured to
-    # flush to hardware after every write.
-    if 'darwin' in sys.platform:
-        subprocess.run(["diskutil", "unmount", os.path.join(
-            "/Volumes", source_vol[0])], check=True)
-        ejected = True
-        if ejected:
-            print(f"All images successfully downloaded and {source_vol[0]} ejected.")
-        else:
-                print(
-                    f"ERROR - All images successfully downloaded, but could not eject {source_vol[0]}!")
-    else:
-        print("All images successfully downloaded.")
-
-    return dir_name
 
 

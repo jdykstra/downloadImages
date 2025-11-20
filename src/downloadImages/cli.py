@@ -35,8 +35,8 @@ import os
 from builtins import str
 from progressbar.widgets import Data
 from builtins import zip
-from .sourceimages import Source_Image, find_source_volume, find_source_images, image_db, STILL_FILE_TYPES, MOTION_FILE_TYPES
-from .download import do_download
+from .sourceimages import SourceImage, find_source_volume, find_source_images, STILL_FILE_TYPES, MOTION_FILE_TYPES
+from .download import create_destination_dir, copy_image_files, look_for_duplicates
 
 __version__ = "2.0"
 __title__ = "downloadImages"
@@ -75,16 +75,16 @@ class CliError(Exception):
 # ?? the images dictionary.
 # ?? Except a file might be a duplicate in one destination directory, and not another.
 # ?? Issue #3:  This doesn't properly handle source files with multiple extensions which are only partially copied.
-def look_for_duplicates(images: dict[str, 'Source_Image'], dst: str) -> list[str]:
+def look_for_duplicates(images: dict[str, 'SourceImage'], dst: str) -> list[str]:
     duplicates = []
 
-    for image_name in iter(image_db.images_db):
-        for extension in image_db.images_db[image_name].extensions:
+    for image_name in iter(images):
+        for extension in images[image_name].extensions:
             dst_full_path = os.path.join(
-                dst, image_db.images_db[image_name].dst_filename + "." + extension)
+                dst, images[image_name].dst_filename + "." + extension)
             if os.path.exists(dst_full_path):
                 src_full_path = os.path.join(
-                    image_db.images_db[image_name].src_path, image_db.images_db[image_name].src_filename + "." + extension)
+                    images[image_name].src_path, images[image_name].src_filename + "." + extension)
                 if (os.stat(dst_full_path).st_size == os.stat(src_full_path).st_size):
                     duplicates.append(image_name)
 
@@ -164,8 +164,76 @@ USAGE
         if 'darwin' in sys.platform:
             caffeinateProcess = subprocess.Popen(('caffeinate', '-i'))
 
-        dir_name = do_download(args.destinations, args.tag, args.description,
-                      args.download_locked_only, args.delete, args.verbose)
+        # Find the source volume.  We can only handle one.
+        source_vols = find_source_volume()
+        if (len(source_vols) < 1):
+            raise CliError("Could not find a DCF volume.")
+        if (len(source_vols) > 1):
+            raise CliError("More than one DCF volume found.")
+        source_vol = source_vols[0]
+
+        # Find image files on the source volume.
+        image_data = find_source_images(source_vol[1], args.download_locked_only)
+        images = image_data.db
+        print(f"{len(images)} images (potentially in multiple files) found on {source_vol[0]}.")
+
+        # If we're supposed to delete the source images, make sure that we can.
+        if (args.delete and not os.access(source_vol[1], os.W_OK)):
+            raise CliError("Source volume is read-only and delete option is set.")
+
+        # Look for existing duplicates on the destination volumes.
+        # DestinationDirs and duplicates are lists in the same order as the
+        # entries in destination_paths.
+        destination_dirs = []
+        duplicates = []
+        today = datetime.date.today()
+        dir_name = str(today.month) + "-" + str(today.day) + " " + args.tag
+        for dest_path in args.destinations:
+
+            # Create the destination directory, if necessary.
+            dest_dir = create_destination_dir(dest_path, dir_name)
+            destination_dirs.append(dest_dir)
+
+            # Look for duplicate image files on the destination.
+            dups = look_for_duplicates(images, dest_dir)
+            duplicates.append(dups)
+            if len(dups) > 0:
+                print("%d image files already exist in \"%s\". " %
+                        (len(dups), dest_dir))
+
+        # Copy the image files from the source to the destinations and create the sidecar files.
+        # ?? Having matching tuples of destination directories and duplicate lists seems
+        # ?? unnecessarily complex.  Why not call copyImageFiles() once for each destination
+        # ?? directory?
+        # ?? We could also pass in the destination directory and duplicate list as a tuple.
+        # On the other hand, this enables us to write all the destinations while each source
+        # file is still open and in cache.
+        copy_image_files(images, destination_dirs, duplicates,
+                        args.description, image_data.total_to_transfer, args.download_locked_only, args.delete)
+
+        # Flush Mac OS disk caches to guard against external disks being disconnected, power failures, etc.
+        # We assume that Windows disks are configured to flush to hardware after every write.
+        if 'darwin' in sys.platform:
+            subprocess.run(["sync"], check=True)
+
+        # Delete the source files.
+        if args.delete:
+            print(f"Deleting images from {source_vol[0]}.\n")
+            shutil.rmtree(source_vol[1])
+
+        # On Mac OS, unmount the source volume.  We assume that Windows disks are configured to
+        # flush to hardware after every write.
+        if 'darwin' in sys.platform:
+            subprocess.run(["diskutil", "unmount", os.path.join(
+                "/Volumes", source_vol[0])], check=True)
+            ejected = True
+            if ejected:
+                print(f"All images successfully downloaded and {source_vol[0]} ejected.")
+            else:
+                    print(
+                        f"ERROR - All images successfully downloaded, but could not eject {source_vol[0]}!")
+        else:
+            print("All images successfully downloaded.")
 
         if caffeinateProcess != None:
             caffeinateProcess.terminate()
