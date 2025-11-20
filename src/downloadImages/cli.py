@@ -35,7 +35,7 @@ import os
 from builtins import str
 from progressbar.widgets import Data
 from builtins import zip
-from .sourceimages import Source_Image, find_source_volume, find_source_images, images_db, file_type_count, locked_file_count, STILL_FILE_TYPES, MOTION_FILE_TYPES, total_to_transfer
+from .sourceimages import Source_Image, find_source_volume, find_source_images, image_db, STILL_FILE_TYPES, MOTION_FILE_TYPES
 from .download import do_download
 
 __version__ = "2.0"
@@ -78,13 +78,13 @@ class CliError(Exception):
 def look_for_duplicates(images: dict[str, 'Source_Image'], dst: str) -> list[str]:
     duplicates = []
 
-    for image_name in iter(images_db):
-        for extension in images_db[image_name].extensions:
+    for image_name in iter(image_db.images_db):
+        for extension in image_db.images_db[image_name].extensions:
             dst_full_path = os.path.join(
-                dst, images_db[image_name].dst_filename + "." + extension)
+                dst, image_db.images_db[image_name].dst_filename + "." + extension)
             if os.path.exists(dst_full_path):
                 src_full_path = os.path.join(
-                    images_db[image_name].src_path, images_db[image_name].src_filename + "." + extension)
+                    image_db.images_db[image_name].src_path, image_db.images_db[image_name].src_filename + "." + extension)
                 if (os.stat(dst_full_path).st_size == os.stat(src_full_path).st_size):
                     duplicates.append(image_name)
 

@@ -2,12 +2,17 @@
 import os
 import stat
 import sys
+from dataclasses import dataclass, field
 
-images_db: dict[str, 'Source_Image'] = {}
-total_images: int = 0
-file_type_count: dict[str, int] = {}
-locked_file_count: int = 0
-total_to_transfer: int = 0
+@dataclass
+class ImageDB:
+    images_db: dict[str, 'Source_Image'] = field(default_factory=dict)
+    total_images: int = 0
+    file_type_count: dict[str, int] = field(default_factory=dict)
+    locked_file_count: int = 0
+    total_to_transfer: int = 0
+
+image_db = ImageDB()
 
 JPEG_FILE_TYPES: list[str] = ['JPG']
 STILL_FILE_TYPES: list[str] = JPEG_FILE_TYPES + ['NEF']
@@ -74,13 +79,12 @@ def find_source_volume() -> list[tuple[str, str]]:
 
 # Return a dictionary describing all of the image files on the source, indexed by the image name.
 def find_source_images(src: str, download_locked_only: bool) -> dict[str, 'Source_Image']:
-    global total_to_transfer, file_type_count, locked_file_count, images_db, total_images
     # Reset global variables for each scan
-    images_db = {}
-    total_images = 0
-    file_type_count = {}
-    locked_file_count = 0
-    total_to_transfer = 0
+    image_db.images_db = {}
+    image_db.total_images = 0
+    image_db.file_type_count = {}
+    image_db.locked_file_count = 0
+    image_db.total_to_transfer = 0
     nearRollover = False
     rolloverOccurred = False
 
@@ -125,46 +129,32 @@ def find_source_images(src: str, download_locked_only: bool) -> dict[str, 'Sourc
 
             # Have we already seen a file for this image (with a different extension)?
             try:
-                image = images_db[image_name]
+                image = image_db.images_db[image_name]
                 if image.contains_file_extension(extension):
                     raise CliError(
                         f"Source contains more than one {src_filename}.{extension}")
                 image.add_file_extension(extension)
                 image.size += size
             except KeyError:
-                images_db[image_name] = Source_Image(
+                image_db.images_db[image_name] = Source_Image(
                     src_filename, dirpath, extension, bool(file_locked), size, dst_filename)
 
-            total_to_transfer += size
+            image_db.total_to_transfer += size
 
             # Increment count for this file type (extension in upper case)
-            if ext_upper not in file_type_count:
-                file_type_count[ext_upper] = 0
-            file_type_count[ext_upper] += 1
+            if ext_upper not in image_db.file_type_count:
+                image_db.file_type_count[ext_upper] = 0
+            image_db.file_type_count[ext_upper] += 1
 
             if file_locked:
-                locked_file_count += 1
+                image_db.locked_file_count += 1
 
-            # If write protect was set on an image by the camera, it will appear on
-            # MacOS as the user-immutable flag.  FWIW, this flag can be seen using
-            # "ls -lhdO".  On Windows, we just look for read-only.
-            src_full_path = os.path.join(dirpath, src_filename + "." + extension)
-            stat_info = os.stat(src_full_path)
-            if 'darwin' in sys.platform:
-                file_locked = stat_info.st_flags & stat.UF_IMMUTABLE
-            else:
-                file_locked = not os.access(src_full_path, os.W_OK)
-
-            # Remember if the number part of the image name is getting near the rollover point.
-            nearRollover |= image_name[-4] == '9'
-            rolloverOccurred |= image_name[-4:] == "9999"
-
-    for ext, count in file_type_count.items():
+    for ext, count in image_db.file_type_count.items():
         if count > 0:
             print(f"{count} {ext} files found.")
-    print(f"Total size of files to transfer: {total_to_transfer / 1_073_741_824:.2f} GB.")
-    if locked_file_count > 0:
-        print(f"{locked_file_count} files are locked.")
+    print(f"Total size of files to transfer: {image_db.total_to_transfer / 1_073_741_824:.2f} GB.")
+    if image_db.locked_file_count > 0:
+        print(f"{image_db.locked_file_count} files are locked.")
     elif download_locked_only:
         print("WARNING:  Downloading locked files only, but no locked files found.")
     if rolloverOccurred:
@@ -172,5 +162,5 @@ def find_source_images(src: str, download_locked_only: bool) -> dict[str, 'Sourc
     elif nearRollover:
         print("WARNING:  Image numbers are nearing the rollover point!")
 
-    return images_db
+    return image_db.images_db
 

@@ -6,7 +6,7 @@ import shutil
 import datetime
 import subprocess
 from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
-from .sourceimages import STILL_FILE_TYPES, total_to_transfer, images_db, Source_Image, CliError, find_source_volume, find_source_images
+from .sourceimages import STILL_FILE_TYPES, image_db, Source_Image, CliError, find_source_volume, find_source_images
 
 
 # Return a list of files already in a destination directory.
@@ -17,13 +17,13 @@ from .sourceimages import STILL_FILE_TYPES, total_to_transfer, images_db, Source
 def look_for_duplicates(images: dict[str, 'Source_Image'], dst: str) -> list[str]:
     duplicates = []
 
-    for image_name in iter(images_db):
-        for extension in images_db[image_name].extensions:
+    for image_name in iter(image_db.images_db):
+        for extension in image_db.images_db[image_name].extensions:
             dst_full_path = os.path.join(
-                dst, images_db[image_name].dst_filename + "." + extension)
+                dst, image_db.images_db[image_name].dst_filename + "." + extension)
             if os.path.exists(dst_full_path):
                 src_full_path = os.path.join(
-                    images_db[image_name].src_path, images_db[image_name].src_filename + "." + extension)
+                    image_db.images_db[image_name].src_path, image_db.images_db[image_name].src_filename + "." + extension)
                 if (os.stat(dst_full_path).st_size == os.stat(src_full_path).st_size):
                     duplicates.append(image_name)
 
@@ -100,9 +100,9 @@ def copy_image_files(
 ) -> None:
 
     already_copied = 0
-    with ProgressTracker(len(destination_dirs) * total_to_transfer) as tracker:
-        for image_name in iter(images_db):
-            image = images_db[image_name]
+    with ProgressTracker(len(destination_dirs) * image_db.total_to_transfer) as tracker:
+        for image_name in iter(image_db.images_db):
+            image = image_db.images_db[image_name]
             for dest, skip in zip(destination_dirs, skips):
                 for extension in image.extensions:
                     src_full_path = os.path.join(
