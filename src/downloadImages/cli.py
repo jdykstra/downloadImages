@@ -33,8 +33,8 @@ import datetime
 import os
 from .sourceimages import SourceImage, find_source_volume, find_source_images, STILL_FILE_TYPES, MOTION_FILE_TYPES
 from .download import create_destination_dir, copy_image_files
+from . import __version__
 
-__version__ = "2.0.1"
 __title__ = "downloadImages"
 __author__ = "John Dykstra"
 __copyright__ = "2017-2025 John Dykstra. All rights reserved."
