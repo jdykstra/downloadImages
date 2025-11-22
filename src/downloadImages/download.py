@@ -1,4 +1,3 @@
-# Tweak the AbsoluteETA widget to only show the time part of the time and date.
 import os
 import stat
 import sys
@@ -6,31 +5,11 @@ import shutil
 import datetime
 import subprocess
 from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
-from .sourceimages import STILL_FILE_TYPES, SourceImage, CliError, find_source_volume, find_source_images
+from .sourceimages import STILL_FILE_TYPES, SourceImage, find_source_volume, find_source_images
 
 
-# Return a list of files already in a destination directory.
-# ?? Too complex.  Either set a "skip" key in the per-image dictionary, or delete the per-image dictionary from
-# ?? the images dictionary.
-# ?? Except a file might be a duplicate in one destination directory, and not another.
-# ?? Issue #3:  This doesn't properly handle source files with multiple extensions which are only partially copied.
-def look_for_duplicates(images: dict[str, 'SourceImage'], dst: str) -> list[str]:
-    duplicates = []
-
-    for image_name in iter(images):
-        for extension in images[image_name].extensions:
-            dst_full_path = os.path.join(
-                dst, images[image_name].dst_filename + "." + extension)
-            if os.path.exists(dst_full_path):
-                src_full_path = os.path.join(
-                    images[image_name].src_path, images[image_name].src_filename + "." + extension)
-                if (os.stat(dst_full_path).st_size == os.stat(src_full_path).st_size):
-                    duplicates.append(image_name)
-
-    return duplicates
-
-
-class CustomAbsoluteEta(AbsoluteETA):
+# Tweak the AbsoluteETA widget to only show the time part of the time and date.
+class _CustomAbsoluteEta(AbsoluteETA):
 
     def __call__(self, progress, data, format=None):
         eta = super().__call__(progress, data, format)
@@ -48,12 +27,12 @@ def create_destination_dir(dest_path: str, name: str) -> str:
 
     return d
 
-class ProgressTracker():
+class _ProgressTracker():
 
     def __init__(self, total):
         self.already_copied = 0
         self.bar = ProgressBar(max_value=total, widgets=[AdaptiveTransferSpeed(), " ", GranularBar(), " ",
-                        CustomAbsoluteEta(format='ETA: %(eta)s', format_finished='ETA: %(ow)s', format_not_started='ETA: --:--')])
+                        _CustomAbsoluteEta(format='ETA: %(eta)s', format_finished='ETA: %(ow)s', format_not_started='ETA: --:--')])
 
     def __enter__(self):
         return self
@@ -101,7 +80,7 @@ def copy_image_files(
 ) -> None:
 
     already_copied = 0
-    with ProgressTracker(len(destination_dirs) * total_to_transfer) as tracker:
+    with _ProgressTracker(len(destination_dirs) * total_to_transfer) as tracker:
         for image_name in iter(images):
             image = images[image_name]
             for dest, skip in zip(destination_dirs, skips):

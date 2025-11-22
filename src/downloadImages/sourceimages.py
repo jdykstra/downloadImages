@@ -30,29 +30,24 @@ class ImageDB:
     file_type_count: dict[str, int] = field(default_factory=dict)
     locked_file_count: int = 0
     total_to_transfer: int = 0
+    near_rollover: bool = False
+    rollover_occurred: bool = False
 
 
+@dataclass
 class SourceImage:
-    def __init__(self, src_filename: str, src_path: str, extension: str, file_locked: bool, size: int, dst_filename: str) -> None:
-        self.src_filename: str = src_filename
-        self.src_path: str = src_path
-        self.extensions: list[str] = [extension]
-        self.file_locked: bool = file_locked
-        self.size: int = size
-        self.dst_filename: str = dst_filename
+    src_filename: str
+    src_path: str
+    extensions: list[str]
+    file_locked: bool
+    size: int
+    dst_filename: str
 
     def add_file_extension(self, extension: str) -> None:
         self.extensions.append(extension)
 
     def contains_file_extension(self, extension: str) -> bool:
         return extension in self.extensions
-
-    def __str__(self) -> str:
-        return (f"ImageFile: src_filename = {self.src_filename}, src_path = {self.src_path}, extensions = {self.extensions}, "
-                f"file_locked = {self.file_locked}, size = {self.size}, dst_filename = {self.dst_filename}")
-
-    def __repr__(self) -> str:
-        return self.__str__()
 
 
 # Find potential source DCF volumes, returning a list of (name, path) tuples.
@@ -75,17 +70,9 @@ def find_source_volume() -> list[tuple[str, str]]:
     return vollist
 
 
-
 # Return a dictionary describing all of the image files on the source, indexed by the image name.
 def find_source_images(src: str, download_locked_only: bool) -> ImageDB:
     image_db = ImageDB()
-    image_db.db = {}
-    image_db.total_images = 0
-    image_db.file_type_count = {}
-    image_db.locked_file_count = 0
-    image_db.total_to_transfer = 0
-    nearRollover = False
-    rolloverOccurred = False
 
     # Enumerate the image files on the source volume.
     for dirpath, _, files in os.walk(src):
@@ -117,8 +104,8 @@ def find_source_images(src: str, download_locked_only: bool) -> ImageDB:
                 file_locked = not os.access(src_full_path, os.W_OK)
 
             # Remember if the number part of the image name is getting near the rollover point.
-            nearRollover |= image_name[-4] == '9'
-            rolloverOccurred |= image_name[-4:] == "9999"
+            image_db.near_rollover |= image_name[-4] == '9'
+            image_db.rollover_occurred |= image_name[-4:] == "9999"
 
             # If we're downloading only locked images, ignore all the rest.
             if download_locked_only and not file_locked:
@@ -136,7 +123,9 @@ def find_source_images(src: str, download_locked_only: bool) -> ImageDB:
                 image.size += size
             except KeyError:
                 image_db.db[image_name] = SourceImage(
-                    src_filename, dirpath, extension, bool(file_locked), size, dst_filename)
+                    src_filename=src_filename, src_path=dirpath, extensions=[extension], 
+                    file_locked=bool(file_locked), size=size, dst_filename=dst_filename
+                    )
 
             image_db.total_to_transfer += size
 
@@ -147,19 +136,6 @@ def find_source_images(src: str, download_locked_only: bool) -> ImageDB:
 
             if file_locked:
                 image_db.locked_file_count += 1
-
-    for ext, count in image_db.file_type_count.items():
-        if count > 0:
-            print(f"{count} {ext} files found.")
-    print(f"Total size of files to transfer: {image_db.total_to_transfer / 1_073_741_824:.2f} GB.")
-    if image_db.locked_file_count > 0:
-        print(f"{image_db.locked_file_count} files are locked.")
-    elif download_locked_only:
-        print("WARNING:  Downloading locked files only, but no locked files found.")
-    if rolloverOccurred:
-        print("WARNING:  Image numbers rolled over!")
-    elif nearRollover:
-        print("WARNING:  Image numbers are nearing the rollover point!")
 
     return image_db
 

@@ -20,7 +20,6 @@ downloadImages -- Download images from a DCF volume such as an SD card.
 '''
 
 from .resolve_integration import ingestMotionClips, ResolveError
-from progressbar.bar import ProgressBarMixinBase, types
 from .apppaths import LIGHTROOM_APP
 from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
 from argparse import RawDescriptionHelpFormatter
@@ -32,11 +31,8 @@ import stat
 import shutil
 import datetime
 import os
-from builtins import str
-from progressbar.widgets import Data
-from builtins import zip
 from .sourceimages import SourceImage, find_source_volume, find_source_images, STILL_FILE_TYPES, MOTION_FILE_TYPES
-from .download import create_destination_dir, copy_image_files, look_for_duplicates
+from .download import create_destination_dir, copy_image_files
 
 __version__ = "2.0"
 __title__ = "downloadImages"
@@ -172,9 +168,22 @@ USAGE
             raise CliError("More than one DCF volume found.")
         source_vol = source_vols[0]
 
-        # Find image files on the source volume.
-        image_data = find_source_images(source_vol[1], args.download_locked_only)
-        images = image_data.db
+        # Ennumerate image files on the source volume.
+        image_db = find_source_images(source_vol[1], args.download_locked_only)
+
+        for ext, count in image_db.file_type_count.items():
+            if count > 0:
+                print(f"{count} {ext} files found.")
+        if image_db.locked_file_count > 0:
+            print(f"{image_db.locked_file_count} files are locked.")
+        elif args.download_locked_only:
+            print("WARNING:  Downloading locked files only, but no locked files found.")
+        print(f"Total size of files to transfer: {image_db.total_to_transfer / 1_073_741_824:.2f} GB.")
+        if image_db.rollover_occurred:
+            print("WARNING:  Image numbers rolled over!")
+        elif image_db.near_rollover:
+            print("WARNING:  Image numbers are nearing the rollover point!")
+        images = image_db.db
         print(f"{len(images)} images (potentially in multiple files) found on {source_vol[0]}.")
 
         # If we're supposed to delete the source images, make sure that we can.
@@ -209,7 +218,7 @@ USAGE
         # On the other hand, this enables us to write all the destinations while each source
         # file is still open and in cache.
         copy_image_files(images, destination_dirs, duplicates,
-                        args.description, image_data.total_to_transfer, args.download_locked_only, args.delete)
+                        args.description, image_db.total_to_transfer, args.download_locked_only, args.delete)
 
         # Flush Mac OS disk caches to guard against external disks being disconnected, power failures, etc.
         # We assume that Windows disks are configured to flush to hardware after every write.
