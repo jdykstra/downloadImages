@@ -238,6 +238,10 @@ def ingestMotionClips(tag, dayStamp, description, path):
         if not timeline:
             raise ResolveError(f"Failed to create timeline '{dayStamp}'")
         
+        # Set that timeline as the current timeline
+        if not project.SetCurrentTimeline(timeline):
+            raise ResolveError(f"Failed to set current timeline to '{dayStamp}'")
+        
         # Sort by name
         clips = sorted(clips, key = lambda clip : clip.GetClipProperty("File Name"))
 
