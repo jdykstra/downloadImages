@@ -67,26 +67,6 @@ class CliError(Exception):
 
 
 # Return a list of files already in a destination directory.
-# ?? Too complex.  Either set a "skip" key in the per-image dictionary, or delete the per-image dictionary from
-# ?? the images dictionary.
-# ?? Except a file might be a duplicate in one destination directory, and not another.
-# ?? Issue #3:  This doesn't properly handle source files with multiple extensions which are only partially copied.
-def look_for_duplicates(images: dict[str, 'SourceImage'], dst: str) -> list[str]:
-    duplicates = []
-
-    for image_name in iter(images):
-        for extension in images[image_name].extensions:
-            dst_full_path = os.path.join(
-                dst, images[image_name].dst_filename + "." + extension)
-            if os.path.exists(dst_full_path):
-                src_full_path = os.path.join(
-                    images[image_name].src_path, images[image_name].src_filename + "." + extension)
-                if (os.stat(dst_full_path).st_size == os.stat(src_full_path).st_size):
-                    duplicates.append(image_name)
-
-    return duplicates
-
-
 #  CLI Interface
 def main(argv: list[str] | None = None) -> int:
 
@@ -190,11 +170,8 @@ USAGE
         if (args.delete and not os.access(source_vol[1], os.W_OK)):
             raise CliError("Source volume is read-only and delete option is set.")
 
-        # Look for existing duplicates on the destination volumes.
-        # DestinationDirs and duplicates are lists in the same order as the
-        # entries in destination_paths.
+        # Create destination directories.
         destination_dirs = []
-        duplicates = []
         today = datetime.date.today()
         dir_name = str(today.month) + "-" + str(today.day) + " " + args.tag
         for dest_path in args.destinations:
@@ -203,22 +180,10 @@ USAGE
             dest_dir = create_destination_dir(dest_path, dir_name)
             destination_dirs.append(dest_dir)
 
-            # Look for duplicate image files on the destination.
-            dups = look_for_duplicates(images, dest_dir)
-            duplicates.append(dups)
-            if len(dups) > 0:
-                print("%d image files already exist in \"%s\". " %
-                        (len(dups), dest_dir))
-
         # Copy the image files from the source to the destinations and create the sidecar files.
-        # ?? Having matching tuples of destination directories and duplicate lists seems
-        # ?? unnecessarily complex.  Why not call copyImageFiles() once for each destination
-        # ?? directory?
-        # ?? We could also pass in the destination directory and duplicate list as a tuple.
-        # On the other hand, this enables us to write all the destinations while each source
-        # file is still open and in cache.
-        copy_image_files(images, destination_dirs, duplicates,
-                        args.description, image_db.total_to_transfer, args.download_locked_only, args.delete)
+        skipped_count = copy_image_files(images, destination_dirs, args.description, image_db.total_to_transfer, args.download_locked_only, args.delete)
+        if skipped_count > 0:
+            print(f"{skipped_count} destination files already existed and were skipped.")
 
         # Delete the source files.
         if args.delete:
@@ -237,10 +202,10 @@ USAGE
                 "/Volumes", source_vol[0])], check=True)
             ejected = True
             if ejected:
-                print(f"All images successfully downloaded and {source_vol[0]} ejected.")
+                print(f"{source_vol[0]} ejected.")
             else:
                     print(
-                        f"ERROR - All images successfully downloaded, but could not eject {source_vol[0]}!")
+                        f"ERROR - Could not eject {source_vol[0]}!")
 
         print("All images successfully downloaded.")
 

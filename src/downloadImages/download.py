@@ -72,48 +72,55 @@ def copy_with_progress(src_file: str, dst_file: str, image_name: str, tracker) -
 def copy_image_files(
     images: dict[str, 'SourceImage'],
     destination_dirs: list[str],
-    skips: list[list[str]],
     description: str,
     total_to_transfer: int,
     download_locked_only: bool = False,
-    delete: bool = False
-) -> None:
+    delete_src: bool = False
+) -> int:
 
     already_copied = 0
+    skipped_count = 0
     with _ProgressTracker(len(destination_dirs) * total_to_transfer) as tracker:
         for image_name in iter(images):
             image = images[image_name]
-            for dest, skip in zip(destination_dirs, skips):
+            for dest in destination_dirs:
                 for extension in image.extensions:
                     src_full_path = os.path.join(
                         image.src_path, image.src_filename + "." + extension)
                     dst_full_path = os.path.join(dest, image.dst_filename + "." + extension)
 
+                    # Check if destination file already exists and has the same size
+                    skip_copy = False
+                    if os.path.exists(dst_full_path):
+                        dst_size = os.stat(dst_full_path).st_size
+                        if image.size == dst_size:
+                            skip_copy = True
+                            skipped_count += 1
+
                     # Copy the image file unless it's a duplicate.  If we're only copying locked files, skip unlocked files.
-                    if image_name not in skip:
-                        if not download_locked_only or image.file_locked:
-                            copy_with_progress(
-                                src_full_path, dst_full_path, image_name, tracker)
+                    if not skip_copy and (not download_locked_only or image.file_locked):
+                        copy_with_progress(
+                            src_full_path, dst_full_path, image_name, tracker)
 
                     # If write protect was set on the source file, clear it on the destination.  We'll
                     # treat it specially below when we create the XMP sidecar file.  If we're going
                     # to delete the source file, also clear write protect on it.
                     # ?? This is slightly unsafe, since we'll lose the locked indication on the source
                     # ?? if we crash before deleting it.
-                    if image.file_locked:
+                    if image.file_locked and not skip_copy:
                         if 'darwin' in sys.platform:
                             os.chflags(dst_full_path, os.stat(
                                 dst_full_path).st_flags & ~stat.UF_IMMUTABLE)
-                            if delete:
+                            if delete_src:
                                 os.chflags(src_full_path, os.stat(
                                     src_full_path).st_flags & ~stat.UF_IMMUTABLE)
                         else:
                             os.chmod(dst_full_path, stat.S_IWRITE)
-                            if delete:
+                            if delete_src:
                                 os.chmod(src_full_path, stat.S_IWRITE)
 
                     # Create the sidecar file for stills only.
-                    if extension.upper() in STILL_FILE_TYPES:
+                    if extension.upper() in STILL_FILE_TYPES and not skip_copy:
                         xmp_label = "     xmp:Label=\"Purple\"\n" if image.file_locked else ""
                         xmp_content = f"""<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">
 <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">
@@ -138,6 +145,8 @@ def copy_image_files(
 
     sys.stdout.write("\n")      # Needed after progress bar output
     sys.stdout.flush()
+
+    return skipped_count
 
 
 
