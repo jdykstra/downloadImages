@@ -2,10 +2,8 @@ import os
 import stat
 import sys
 import shutil
-import datetime
-import subprocess
 from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
-from .sourceimages import STILL_FILE_TYPES, SourceImage, find_source_volume, find_source_images
+from .sourceimages import STILL_FILE_TYPES, SourceImage
 
 
 # Tweak the AbsoluteETA widget to only show the time part of the time and date.
@@ -39,7 +37,7 @@ class _ProgressTracker():
 # We originally used shutil.copy2(), which takes advantage of OS-specific optimizations,
 # but doesn't provide progress feedback.
 # Tests of this version on Mac OS with an external flash drive showed equivalent performance.
-def copy_with_progress(src_file: str, dst_file: str, image_name: str, tracker) -> None:
+def _copy_with_progress(src_file: str, dst_file: str, image_name: str, tracker) -> None:
     try:
         with open(src_file, 'rb') as src, open(dst_file, 'wb') as dst:
             while True:
@@ -89,7 +87,7 @@ def copy_image_files(
 
                     # Copy the image file unless it's a duplicate.  If we're only copying locked files, skip unlocked files.
                     if not skip_copy and (not download_locked_only or image.file_locked):
-                        copy_with_progress(
+                        _copy_with_progress(
                             src_full_path, dst_full_path, image_name, tracker)
 
                     # If write protect was set on the source file, clear it on the destination.  We'll

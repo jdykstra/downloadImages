@@ -22,13 +22,11 @@ downloadImages -- Download images from a DCF volume such as an SD card.
 import traceback
 import sys
 import subprocess
-import stat
 import shutil
 import datetime
 import os
-from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
 from argparse import RawDescriptionHelpFormatter, ArgumentParser
-from .sourceimages import SourceImage, find_source_volume, find_source_images, STILL_FILE_TYPES, MOTION_FILE_TYPES
+from .sourceimages import SourceImage, find_source_volume, find_source_images
 from .download import copy_image_files
 from . import __version__
 from .resolve_integration import ingestMotionClips, ResolveError
