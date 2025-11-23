@@ -19,11 +19,6 @@ downloadImages -- Download images from a DCF volume such as an SD card.
     the destination directory, but we don't allow multiple destination files that differ only in case.
 '''
 
-from .resolve_integration import ingestMotionClips, ResolveError
-from .apppaths import LIGHTROOM_APP
-from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
-from argparse import RawDescriptionHelpFormatter
-from argparse import ArgumentParser
 import traceback
 import sys
 import subprocess
@@ -31,9 +26,13 @@ import stat
 import shutil
 import datetime
 import os
+from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
+from argparse import RawDescriptionHelpFormatter, ArgumentParser
 from .sourceimages import SourceImage, find_source_volume, find_source_images, STILL_FILE_TYPES, MOTION_FILE_TYPES
-from .download import create_destination_dir, copy_image_files
+from .download import copy_image_files
 from . import __version__
+from .resolve_integration import ingestMotionClips, ResolveError
+from .apppaths import LIGHTROOM_APP
 
 __title__ = "downloadImages"
 __author__ = "John Dykstra"
@@ -65,8 +64,82 @@ class CliError(Exception):
         return self.msg
 
 
+def _do_download(args, destination_dirs):
+    caffeinateProcess = None
+    if 'darwin' in sys.platform:
+        caffeinateProcess = subprocess.Popen(('caffeinate', '-i'))
 
-# Return a list of files already in a destination directory.
+    # Find the source volume.  We can only handle one.
+    source_vols = find_source_volume()
+    if (len(source_vols) < 1):
+        raise CliError("Could not find a DCF volume.")
+    if (len(source_vols) > 1):
+        raise CliError("More than one DCF volume found.")
+    source_vol = source_vols[0]
+
+    # Ennumerate image files on the source volume.
+    image_db = find_source_images(source_vol[1], args.download_locked_only)
+
+    for ext, count in image_db.file_type_count.items():
+        if count > 0:
+            print(f"{count} {ext} files found.")
+    if image_db.locked_file_count > 0:
+        print(f"{image_db.locked_file_count} files are locked.")
+    elif args.download_locked_only:
+        print("WARNING:  Downloading locked files only, but no locked files found.")
+    print(f"{len(image_db.db)} images (potentially in multiple files) found on {source_vol[0]}.")
+    print(f"Total size of files to transfer: {image_db.total_to_transfer / 1_073_741_824:.2f} GB.")
+    if image_db.rollover_occurred:
+        print("WARNING:  Image numbers rolled over!")
+    elif image_db.near_rollover:
+        print("WARNING:  Image numbers are nearing the rollover point!")
+    images = image_db.db
+
+    # If we're supposed to delete the source images, make sure that we can.
+    if (args.delete and not os.access(source_vol[1], os.W_OK)):
+        raise CliError("Source volume is read-only and delete option is set.")
+
+    # Create the destination directories.
+    # If a destination directory already exists, accept that silently.
+    for d in destination_dirs:
+        if not os.path.isdir(d):
+            os.makedirs(d)
+    
+    # Copy the image files from the source to the destinations and create the sidecar files.
+    skipped_count = copy_image_files(images, destination_dirs, args.description, image_db.total_to_transfer, args.download_locked_only, args.delete)
+    if skipped_count > 0:
+        print(f"{skipped_count} destination files already existed and were skipped.")
+
+    # Delete the source files.
+    if args.delete:
+        print(f"Deleting images from {source_vol[0]}.\n")
+        shutil.rmtree(source_vol[1])
+
+    # Flush Mac OS disk caches to guard against external disks being disconnected, power failures, etc.
+    # We assume that Windows disks are configured to flush to hardware after every write.
+    if 'darwin' in sys.platform:
+        subprocess.run(["sync"], check=True)
+
+    # On Mac OS, unmount the source volume.  We assume that Windows disks are configured to
+    # flush to hardware after every write.
+    if 'darwin' in sys.platform:
+        subprocess.run(["diskutil", "unmount", os.path.join(
+            "/Volumes", source_vol[0])], check=True)
+        ejected = True
+        if ejected:
+            print(f"{source_vol[0]} ejected.")
+        else:
+                print(
+                    f"ERROR - Could not eject {source_vol[0]}!")
+
+    print("All images successfully downloaded.")
+
+    if caffeinateProcess != None:
+        caffeinateProcess.terminate()
+
+    return caffeinateProcess
+
+
 #  CLI Interface
 def main(argv: list[str] | None = None) -> int:
 
@@ -114,6 +187,8 @@ USAGE
                             action='store_true', help="Import all images into Lightroom.")
         parser.add_argument("-r", "--resolve", dest="automateResolve",
                     action='store_true', help="Import all motion clips into DaVinci Resolve.")
+        parser.add_argument("-p", "--post-only", dest="post_only", action='store_true',
+                            help="Skip copying and only perform post-processing steps (automate, resolve).")
         parser.add_argument('-V', '--version', action='version',
                             version=program_version_message)
         parser.add_argument("destinations", nargs='+',
@@ -137,83 +212,20 @@ USAGE
             print("Error:  Delete and locked-only options are mutually exclusive.")
             return 2
 
-        if 'darwin' in sys.platform:
-            caffeinateProcess = subprocess.Popen(('caffeinate', '-i'))
-
-        # Find the source volume.  We can only handle one.
-        source_vols = find_source_volume()
-        if (len(source_vols) < 1):
-            raise CliError("Could not find a DCF volume.")
-        if (len(source_vols) > 1):
-            raise CliError("More than one DCF volume found.")
-        source_vol = source_vols[0]
-
-        # Ennumerate image files on the source volume.
-        image_db = find_source_images(source_vol[1], args.download_locked_only)
-
-        for ext, count in image_db.file_type_count.items():
-            if count > 0:
-                print(f"{count} {ext} files found.")
-        if image_db.locked_file_count > 0:
-            print(f"{image_db.locked_file_count} files are locked.")
-        elif args.download_locked_only:
-            print("WARNING:  Downloading locked files only, but no locked files found.")
-        print(f"{len(image_db.db)} images (potentially in multiple files) found on {source_vol[0]}.")
-        print(f"Total size of files to transfer: {image_db.total_to_transfer / 1_073_741_824:.2f} GB.")
-        if image_db.rollover_occurred:
-            print("WARNING:  Image numbers rolled over!")
-        elif image_db.near_rollover:
-            print("WARNING:  Image numbers are nearing the rollover point!")
-        images = image_db.db
-
-        # If we're supposed to delete the source images, make sure that we can.
-        if (args.delete and not os.access(source_vol[1], os.W_OK)):
-            raise CliError("Source volume is read-only and delete option is set.")
-
-        # Create destination directories.
+        # Compute the destination directory names.
         destination_dirs = []
         today = datetime.date.today()
         dir_name = str(today.month) + "-" + str(today.day) + " " + args.tag
         for dest_path in args.destinations:
+            destination_dirs.append(os.path.join(dest_path, dir_name))
 
-            # Create the destination directory, if necessary.
-            dest_dir = create_destination_dir(dest_path, dir_name)
-            destination_dirs.append(dest_dir)
-
-        # Copy the image files from the source to the destinations and create the sidecar files.
-        skipped_count = copy_image_files(images, destination_dirs, args.description, image_db.total_to_transfer, args.download_locked_only, args.delete)
-        if skipped_count > 0:
-            print(f"{skipped_count} destination files already existed and were skipped.")
-
-        # Delete the source files.
-        if args.delete:
-            print(f"Deleting images from {source_vol[0]}.\n")
-            shutil.rmtree(source_vol[1])
-
-        # Flush Mac OS disk caches to guard against external disks being disconnected, power failures, etc.
-        # We assume that Windows disks are configured to flush to hardware after every write.
-        if 'darwin' in sys.platform:
-            subprocess.run(["sync"], check=True)
-
-        # On Mac OS, unmount the source volume.  We assume that Windows disks are configured to
-        # flush to hardware after every write.
-        if 'darwin' in sys.platform:
-            subprocess.run(["diskutil", "unmount", os.path.join(
-                "/Volumes", source_vol[0])], check=True)
-            ejected = True
-            if ejected:
-                print(f"{source_vol[0]} ejected.")
-            else:
-                    print(
-                        f"ERROR - Could not eject {source_vol[0]}!")
-
-        print("All images successfully downloaded.")
-
-        if caffeinateProcess != None:
-            caffeinateProcess.terminate()
+        # Download source images to the destination(s).
+        if not args.post_only:
+            caffeinateProcess = _do_download(args, destination_dirs)
 
         # Launch Lightroom to ingest all image files.  This will run asynchronously.
         if args.automate:
+            print(f"Ingesting all images to Lightroom...")
             if 'darwin' in sys.platform:
                 os.system("open -a \"" + LIGHTROOM_APP + "\" \"" +
                           os.path.join(args.destinations[0], dir_name) + "\"")
@@ -225,11 +237,9 @@ USAGE
         if args.automateResolve:
             print(f"Ingesting motion to Resolve project {args.tag}...")
             today = datetime.date.today()
-            dir_name = str(today.month) + "-" + str(today.day) + " " + args.tag
             day_stamp = str(today.month) + "-" + str(today.day)
-            full_path = os.path.join(args.destinations[0], dir_name)
             try:
-                ingestMotionClips(args.tag, day_stamp, args.description, full_path)
+                ingestMotionClips(args.tag, day_stamp, args.description, destination_dirs[0])
             except ResolveError as e:
                 print("Error: Could not ingest motion files to Resolve.")
                 print(f"Error: {e}")

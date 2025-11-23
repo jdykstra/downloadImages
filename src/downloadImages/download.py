@@ -17,16 +17,6 @@ class _CustomAbsoluteEta(AbsoluteETA):
         return 'ETA: %s' % eta[-8:]
 
 
-# Create the destination directory, returning a path to it.
-def create_destination_dir(dest_path: str, name: str) -> str:
-    d = os.path.join(dest_path, name)
-
-    # If the destination directory already exists, accept that silently.
-    if not os.path.isdir(d):
-        os.makedirs(d)
-
-    return d
-
 class _ProgressTracker():
 
     def __init__(self, total):
