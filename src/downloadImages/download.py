@@ -1,9 +1,10 @@
 import os
+import shutil
 import stat
 import sys
-import shutil
-from progressbar import ProgressBar, GranularBar, AdaptiveTransferSpeed, AbsoluteETA
-from .sourceimages import STILL_FILE_TYPES, SourceImage
+from progressbar import AbsoluteETA, AdaptiveTransferSpeed, GranularBar, ProgressBar
+
+from .sourceimages import SourceImage, STILL_FILE_TYPES
 
 
 # Tweak the AbsoluteETA widget to only show the time part of the time and date.

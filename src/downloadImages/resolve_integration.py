@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import sys
 import os
-import time
 import subprocess
+import sys
+import time
 
-from .python_get_resolve import GetResolve
 from .apppaths import RESOLVE_APP_NAME, RESOLVE_EXE_PATH
+from .python_get_resolve import GetResolve
 
 """ Project preset used.  """
 INGRESS_PROJECT_PRESET="JWD"

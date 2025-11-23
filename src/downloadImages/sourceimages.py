@@ -1,8 +1,8 @@
 # File-global source image database and summary variables
+from dataclasses import dataclass, field
 import os
 import stat
 import sys
-from dataclasses import dataclass, field
 
 JPEG_FILE_TYPES: list[str] = ['JPG']
 STILL_FILE_TYPES: list[str] = JPEG_FILE_TYPES + ['NEF']

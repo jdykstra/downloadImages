@@ -19,18 +19,19 @@ downloadImages -- Download images from a DCF volume such as an SD card.
     the destination directory, but we don't allow multiple destination files that differ only in case.
 '''
 
-import traceback
-import sys
-import subprocess
-import shutil
 import datetime
 import os
-from argparse import RawDescriptionHelpFormatter, ArgumentParser
-from .sourceimages import SourceImage, find_source_volume, find_source_images
-from .download import copy_image_files
+import shutil
+import subprocess
+import sys
+import traceback
+from argparse import ArgumentParser, RawDescriptionHelpFormatter
+
 from . import __version__
-from .resolve_integration import ingestMotionClips, ResolveError
 from .apppaths import LIGHTROOM_APP
+from .download import copy_image_files
+from .resolve_integration import ResolveError, ingestMotionClips
+from .sourceimages import SourceImage, find_source_images, find_source_volume
 
 __title__ = "downloadImages"
 __author__ = "John Dykstra"

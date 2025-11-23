@@ -112,5 +112,11 @@ mediaPool.ImportMediaFiles(path)  # Only imports to current project
 - Exception handling with proper cleanup
 - No external configuration files (all hardcoded paths)
 - MIT licensed, case-insensitive filesystem handling
-- **Enclosed functions must be defined at the start of their enclosing function** - nested helper functions should appear immediately after the enclosing function's docstring and before any other code</content>
+- **Enclosed functions must be defined at the start of their enclosing function** - nested helper functions should appear immediately after the enclosing function's docstring and before any other code
+- **Import Ordering**: Follow PEP 8 import conventions:
+  1. Standard library imports (alphabetical)
+  2. Third-party package imports (alphabetical)  
+  3. Local package imports (alphabetical)
+  - Sort imported names alphabetically within each `from` statement
+  - Separate groups with blank lines</content>
 <parameter name="filePath">/Volumes/nobackup-cs/downloadImages/.github/copilot-instructions.md
