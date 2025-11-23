@@ -178,13 +178,13 @@ USAGE
             print(f"{image_db.locked_file_count} files are locked.")
         elif args.download_locked_only:
             print("WARNING:  Downloading locked files only, but no locked files found.")
+        print(f"{len(image_db.db)} images (potentially in multiple files) found on {source_vol[0]}.")
         print(f"Total size of files to transfer: {image_db.total_to_transfer / 1_073_741_824:.2f} GB.")
         if image_db.rollover_occurred:
             print("WARNING:  Image numbers rolled over!")
         elif image_db.near_rollover:
             print("WARNING:  Image numbers are nearing the rollover point!")
         images = image_db.db
-        print(f"{len(images)} images (potentially in multiple files) found on {source_vol[0]}.")
 
         # If we're supposed to delete the source images, make sure that we can.
         if (args.delete and not os.access(source_vol[1], os.W_OK)):
@@ -220,15 +220,15 @@ USAGE
         copy_image_files(images, destination_dirs, duplicates,
                         args.description, image_db.total_to_transfer, args.download_locked_only, args.delete)
 
-        # Flush Mac OS disk caches to guard against external disks being disconnected, power failures, etc.
-        # We assume that Windows disks are configured to flush to hardware after every write.
-        if 'darwin' in sys.platform:
-            subprocess.run(["sync"], check=True)
-
         # Delete the source files.
         if args.delete:
             print(f"Deleting images from {source_vol[0]}.\n")
             shutil.rmtree(source_vol[1])
+
+        # Flush Mac OS disk caches to guard against external disks being disconnected, power failures, etc.
+        # We assume that Windows disks are configured to flush to hardware after every write.
+        if 'darwin' in sys.platform:
+            subprocess.run(["sync"], check=True)
 
         # On Mac OS, unmount the source volume.  We assume that Windows disks are configured to
         # flush to hardware after every write.
@@ -241,8 +241,8 @@ USAGE
             else:
                     print(
                         f"ERROR - All images successfully downloaded, but could not eject {source_vol[0]}!")
-        else:
-            print("All images successfully downloaded.")
+
+        print("All images successfully downloaded.")
 
         if caffeinateProcess != None:
             caffeinateProcess.terminate()
@@ -273,17 +273,11 @@ USAGE
 
         return 0
         
-    except KeyboardInterrupt:
-        print("Keyboard interrupt")
-        if caffeinateProcess != None:
-            print("Killing caffeinate")
-            caffeinateProcess.terminate()
+    except KeyboardInterrupt as e:
+        print("Keyboard interrupt: " + repr(e))
         return 2
-    
     except CliError as e:
         print(e)
-        if caffeinateProcess != None:
-            caffeinateProcess.terminate()
         indent = len(program_name) * " "
         sys.stderr.write(program_name + ": " + repr(e) + "\n")
         sys.stderr.write(indent + "  for help use --help\n")    
@@ -295,12 +289,13 @@ USAGE
         traceback.print_tb(sys.exc_info()[2])
         if DEBUG:
             pdb.post_mortem(tb)
-        if caffeinateProcess != None:
-            print("Killing caffeinate")
-            caffeinateProcess.terminate()
         if DEBUG:
             raise(e)       
         return 2
+    finally:
+        if caffeinateProcess != None:
+            print("Killing caffeinate")
+            caffeinateProcess.terminate()
 
 if __name__ == "__main__":
     sys.exit(main())
