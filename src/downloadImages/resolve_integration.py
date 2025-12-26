@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import sys
 import os
-import time
 import subprocess
+import sys
+import time
 
-from .python_get_resolve import GetResolve
 from .apppaths import RESOLVE_APP_NAME, RESOLVE_EXE_PATH
+from .python_get_resolve import GetResolve
 
 """ Project preset used.  """
 INGRESS_PROJECT_PRESET="JWD"
@@ -17,7 +17,7 @@ def _launchResolve():
     Launch DaVinci Resolve if it's not already running and wait for it to be available.
     """
 
-    ATTEMPT_SECONDS = 20.0
+    ATTEMPT_SECONDS = 30.0
 
     while True:
         # First check if Resolve is already available
@@ -237,6 +237,10 @@ def ingestMotionClips(tag, dayStamp, description, path):
         timeline = _ensure_timeline_exists(mediaPool, project, dayStamp)
         if not timeline:
             raise ResolveError(f"Failed to create timeline '{dayStamp}'")
+        
+        # Set that timeline as the current timeline
+        if not project.SetCurrentTimeline(timeline):
+            raise ResolveError(f"Failed to set current timeline to '{dayStamp}'")
         
         # Sort by name
         clips = sorted(clips, key = lambda clip : clip.GetClipProperty("File Name"))

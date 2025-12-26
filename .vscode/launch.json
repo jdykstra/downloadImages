@@ -3,17 +3,20 @@
     "configurations": [
         {
             "name": "MacOS Test",
-            "type": "debugpy",
+            "type": "python",
             "request": "launch",
-            "program": "/Volumes/nobackup-cs/downloadImages/downloadImages/downloadImages.py",
+            "module": "downloadImages.cli",
             "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
             "justMyCode": false,
             "args": [  
                 "-t",
                 "test",
-                "/Volumes/nobackup-cs/downloadImages/test_destination_directory/Image Edit",
-                "/Volumes/nobackup-cs/downloadImages/test_destination_directory/Image Backup"
-            ]
+                "/Users/jwd/Image Edit",
+            ],
+            "env": {
+            "PYTHONPATH": "${workspaceFolder}/src"
+            }
         },
         {
             "name": "Windows Test",
