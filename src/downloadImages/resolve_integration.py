@@ -8,6 +8,7 @@ import time
 
 from .apppaths import RESOLVE_APP_NAME, RESOLVE_EXE_PATH
 from .python_get_resolve import GetResolve
+from .sourceimages import MOTION_FILE_TYPES
 
 """ Project preset used.  """
 INGRESS_PROJECT_PRESET="JWD"
@@ -195,13 +196,14 @@ def ingestMotionClips(tag, dayStamp, description, path):
             raise ResolveError(f"Failed to get media pool from project '{tag}'")
         
         try:
-            mediaStorage = resolve.GetMediaStorage()
-            if not mediaStorage:
-                raise ResolveError("Failed to get media storage from Resolve")
-            
-            clips = mediaStorage.AddItemListToMediaPool([path])
+            files_to_import = [
+            entry.path for entry in os.scandir(path) 
+            if entry.is_file() and os.path.splitext(entry.name)[1][1:].upper() in MOTION_FILE_TYPES
+            ]
+
+            clips = mediaPool.ImportMedia(files_to_import)
             if not clips:
-                raise ResolveError(f"Failed to import media files from directory: {path}")
+                raise ResolveError(f"Resolve failed to import media files from directory: {path}")
         except Exception as e:
             raise ResolveError(f"Exception while importing media files: {e}")
         

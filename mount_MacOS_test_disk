@@ -1,0 +1,2 @@
+#!/bin/bash
+hdiutil attach "Test Disk Image.dmg"

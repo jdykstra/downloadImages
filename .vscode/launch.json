@@ -8,6 +8,7 @@
             "module": "downloadImages.cli",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
+            "preLaunchTask": "mount_MacOS_test_disk"
             "justMyCode": false,
             "args": [  
                 "-t",
@@ -20,7 +21,7 @@
         },
         {
             "name": "Windows Test",
-            "type": "debugpy",
+            "type": "python",
             "request": "launch",
             "program": "R:\\downloadImages\downloadImages\downloadImages.py",
             "console": "integratedTerminal",
@@ -29,9 +30,11 @@
         },
         {
             "name": "Resolve Integration Test",
-            "type": "debugpy",
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "mount_MacOS_test_disk"
+            "type": "python",
             "request": "launch",
-            "program": "/Volumes/nobackup-cs/downloadImages/downloadImages/downloadImages.py",
+            "module": "downloadImages.cli",
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
@@ -43,6 +46,5 @@
                 "/Users/jwd/Image Edit/"
             ]
         }
-
     ]
 }
