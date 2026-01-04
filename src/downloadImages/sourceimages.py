@@ -71,6 +71,8 @@ def find_source_volume() -> list[tuple[str, str]]:
 
 
 # Return a dictionary describing all of the image files on the source, indexed by the image name.
+# Remember that the source paths and filenames will be invalid after the source files are deleted,
+# but the counts, etc. will still be useful.
 def find_source_images(src: str, download_locked_only: bool) -> ImageDB:
     image_db = ImageDB()
 

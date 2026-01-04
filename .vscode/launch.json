@@ -39,6 +39,7 @@
             "justMyCode": false,
             "args": [
                 "-r",
+                "-a",
                 "-t",
                 "testproj",
                 "-d",
