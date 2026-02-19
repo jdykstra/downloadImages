@@ -179,7 +179,7 @@ class ResolveError(Exception):
     """Exception raised for DaVinci Resolve integration errors."""
     pass
 
-n 
+
 def ingestMotionClips(tag, dayStamp, description, path):
 
     # This properly handles the case where a previous ingest failed (e.g. because Resolve
