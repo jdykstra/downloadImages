@@ -49,9 +49,6 @@ if DEBUG:
     import traceback
 
 
-CLEOL: str = "\033[K"  # Clear to end of line ANSI escape sequence
-
-
 class CliError(Exception):
     '''Generic exception to raise and log different fatal errors.'''
 
