@@ -181,6 +181,13 @@ class ResolveError(Exception):
 
 
 def ingestMotionClips(tag, dayStamp, description, path):
+
+    # This properly handles the case where a previous ingest failed (e.g. because Resolve
+    # displayed its "update available" dialog), but we get run again on the same target
+    # directory (perhaps because a new card is downloaded).  os.scandir() will pick up
+    # the motion files downloaded previously.  This means it will also pick up files
+    # that may have been part of a previous successful ingress, but mediapool.ImportMedia()
+    # apparently handles that gracefully.
     
     try:
         resolve = _launchResolve()

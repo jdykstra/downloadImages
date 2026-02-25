@@ -27,6 +27,9 @@ import sys
 import traceback
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 
+import colorama
+from colorama import Fore, Style
+
 from . import __version__
 from .apppaths import LIGHTROOM_APP
 from .download import copy_image_files
@@ -44,9 +47,6 @@ DEBUG: bool = False
 if DEBUG:
     import pdb
     import traceback
-
-
-CLEOL: str = "\033[K"  # Clear to end of line ANSI escape sequence
 
 
 class CliError(Exception):
@@ -86,13 +86,13 @@ def _do_download(args, destination_dirs):
         if image_db.locked_file_count > 0:
             print(f"{image_db.locked_file_count} files are locked.")
         elif args.download_locked_only:
-            print("WARNING:  Downloading locked files only, but no locked files found.")
+            print(Fore.RED + "WARNING:  Downloading locked files only, but no locked files found." + Style.RESET_ALL)
         print(f"{len(image_db.db)} images (potentially in multiple files) found on {source_vol[0]}.")
         print(f"Total size of files to transfer: {image_db.total_to_transfer / 1_073_741_824:.2f} GB.")
         if image_db.rollover_occurred:
-            print("WARNING:  Image numbers rolled over!")
+            print(Fore.RED + "WARNING:  Image numbers rolled over!" + Style.RESET_ALL)
         elif image_db.near_rollover:
-            print("WARNING:  Image numbers are nearing the rollover point!")
+            print(Fore.RED + "WARNING:  Image numbers are nearing the rollover point!" + Style.RESET_ALL)
         images = image_db.db
 
         # If we're supposed to delete the source images, make sure that we can.
@@ -164,6 +164,7 @@ USAGE
 '''
 
     print("downloadImages v%s" % (__version__))
+    colorama.init()
     caffeinateProcess = None
     if sys.platform not in ["darwin", "win32"]:
         sys.stderr.write("Only Mac OS and Windows are supported.")
