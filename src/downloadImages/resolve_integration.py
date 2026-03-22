@@ -203,18 +203,6 @@ def ingestMotionClips(tag, dayStamp, description, path):
         if not mediaPool:
             raise ResolveError(f"Failed to get media pool from project '{tag}'")
         
-        try:
-            files_to_import = [
-            entry.path for entry in os.scandir(path) 
-            if entry.is_file() and os.path.splitext(entry.name)[1][1:].upper() in MOTION_FILE_TYPES
-            ]
-
-            clips = mediaPool.ImportMedia(files_to_import)
-            if not clips:
-                raise ResolveError(f"Resolve failed to import media files from directory: {path}")
-        except Exception as e:
-            raise ResolveError(f"Exception while importing media files: {e}")
-        
         # Create or get bin/folder named after dayStamp
         try:
             rootFolder = mediaPool.GetRootFolder()
@@ -234,8 +222,34 @@ def ingestMotionClips(tag, dayStamp, description, path):
                 targetFolder = mediaPool.AddSubFolder(rootFolder, dayStamp)
                 if not targetFolder:
                     raise ResolveError(f"Failed to create folder '{dayStamp}'")
+
+            existing_clip_names = set()
+            try:
+                existing_clips = targetFolder.GetClipList() or []
+                existing_clip_names = {
+                    clip.GetName().upper()
+                    for clip in existing_clips
+                    if clip and clip.GetName()
+                }
+            except Exception:
+                existing_clip_names = set()
+
+            files_to_import = [
+                entry.path
+                for entry in os.scandir(path)
+                if entry.is_file()
+                and os.path.splitext(entry.name)[1][1:].upper() in MOTION_FILE_TYPES
+                and entry.name.upper() not in existing_clip_names
+            ]
+
+            if not files_to_import:
+                return
             
             # Move imported clips to the target folder
+            clips = mediaPool.ImportMedia(files_to_import)
+            if not clips:
+                raise ResolveError(f"Resolve failed to import media files from directory: {path}")
+
             success = mediaPool.MoveClips(clips, targetFolder)
             if not success:
                 raise ResolveError(f"Failed to move clips to folder '{dayStamp}'")
