@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import time
+from datetime import datetime
 
 from .apppaths import RESOLVE_APP_NAME, RESOLVE_EXE_PATH
 from .python_get_resolve import GetResolve
@@ -202,18 +203,6 @@ def ingestMotionClips(tag, dayStamp, description, path):
         if not mediaPool:
             raise ResolveError(f"Failed to get media pool from project '{tag}'")
         
-        try:
-            files_to_import = [
-            entry.path for entry in os.scandir(path) 
-            if entry.is_file() and os.path.splitext(entry.name)[1][1:].upper() in MOTION_FILE_TYPES
-            ]
-
-            clips = mediaPool.ImportMedia(files_to_import)
-            if not clips:
-                raise ResolveError(f"Resolve failed to import media files from directory: {path}")
-        except Exception as e:
-            raise ResolveError(f"Exception while importing media files: {e}")
-        
         # Create or get bin/folder named after dayStamp
         try:
             rootFolder = mediaPool.GetRootFolder()
@@ -233,8 +222,34 @@ def ingestMotionClips(tag, dayStamp, description, path):
                 targetFolder = mediaPool.AddSubFolder(rootFolder, dayStamp)
                 if not targetFolder:
                     raise ResolveError(f"Failed to create folder '{dayStamp}'")
+
+            existing_clip_names = set()
+            try:
+                existing_clips = targetFolder.GetClipList() or []
+                existing_clip_names = {
+                    clip.GetName().upper()
+                    for clip in existing_clips
+                    if clip and clip.GetName()
+                }
+            except Exception:
+                existing_clip_names = set()
+
+            files_to_import = [
+                entry.path
+                for entry in os.scandir(path)
+                if entry.is_file()
+                and os.path.splitext(entry.name)[1][1:].upper() in MOTION_FILE_TYPES
+                and entry.name.upper() not in existing_clip_names
+            ]
+
+            if not files_to_import:
+                return
             
             # Move imported clips to the target folder
+            clips = mediaPool.ImportMedia(files_to_import)
+            if not clips:
+                raise ResolveError(f"Resolve failed to import media files from directory: {path}")
+
             success = mediaPool.MoveClips(clips, targetFolder)
             if not success:
                 raise ResolveError(f"Failed to move clips to folder '{dayStamp}'")
@@ -251,12 +266,31 @@ def ingestMotionClips(tag, dayStamp, description, path):
         if not project.SetCurrentTimeline(timeline):
             raise ResolveError(f"Failed to set current timeline to '{dayStamp}'")
         
-        # Sort by name
-        clips = sorted(clips, key = lambda clip : clip.GetClipProperty("File Name"))
+        # Sort by start timecode, then by date created as a fallback.
+        def sort_key(clip):
+            date_str = clip.GetClipProperty("Date Created") or ""
+            tc_str = clip.GetClipProperty("Start TC") or ""
 
-        # Append the sorted clips to the timeline
+            def parse_timecode(value):
+                try:
+                    hours, minutes, seconds_and_frames = value.split(":", 2)
+                    seconds, frames = seconds_and_frames.split(";", 1)
+                    return (int(hours), int(minutes), int(seconds), int(frames))
+                except Exception:
+                    return (999, 999, 999, 999)
+
+            try:
+                date_obj = datetime.strptime(date_str, "%a %b %d %Y %H:%M:%S")
+            except ValueError:
+                date_obj = datetime.min
+
+            return (parse_timecode(tc_str), date_obj)
+        
+        sorted_clips = sorted(clips, key=sort_key)
+        
+        # Append all sorted clips to the new timeline
         try:
-            for clip in clips:
+            for clip in sorted_clips:
                 mediaPool.AppendToTimeline(clip)
         except Exception as e:
             raise ResolveError(f"Exception while appending clips to timeline: {e}")
