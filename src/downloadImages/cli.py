@@ -89,10 +89,10 @@ def _do_download(args, destination_dirs):
             print(Fore.RED + "WARNING:  Downloading locked files only, but no locked files found." + Style.RESET_ALL)
         print(f"{len(image_db.db)} images (potentially in multiple files) found on {source_vol[0]}.")
         print(f"Total size of files to transfer: {image_db.total_to_transfer / 1_073_741_824:.2f} GB.")
-        if image_db.rollover_occurred:
-            print(Fore.RED + "WARNING:  Image numbers rolled over!" + Style.RESET_ALL)
-        elif image_db.near_rollover:
-            print(Fore.RED + "WARNING:  Image numbers are nearing the rollover point!" + Style.RESET_ALL)
+        if image_db.rollover_occurred_prefixes:
+            print(Fore.RED + "WARNING:  Image numbers rolled over for camera prefixes: " + ", ".join(image_db.rollover_occurred_prefixes) + Style.RESET_ALL)
+        elif image_db.near_rollover_prefixes:
+            print(Fore.RED + "WARNING:  Image numbers are nearing the rollover point for camera prefixes: " + ", ".join(image_db.near_rollover_prefixes) + Style.RESET_ALL)
         images = image_db.db
 
         # If we're supposed to delete the source images, make sure that we can.
@@ -227,8 +227,9 @@ USAGE
             image_db = _do_download(args, destination_dirs)
 
         # Launch Lightroom to ingest all image files.  This will run asynchronously.
-        has_stills = any(ext in STILL_FILE_TYPES for ext in image_db.file_type_count)
-        if args.automate and has_stills:
+        # We do this even if there are no still images, because we use LightRoom
+        # to track motion files, too.
+        if args.automate:
             print(f"Ingesting all images to Lightroom...")
             if 'darwin' in sys.platform:
                 os.system("open -a \"" + LIGHTROOM_APP + "\" \"" +

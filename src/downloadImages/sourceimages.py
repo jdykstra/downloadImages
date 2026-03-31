@@ -30,8 +30,8 @@ class ImageDB:
     file_type_count: dict[str, int] = field(default_factory=dict)
     locked_file_count: int = 0
     total_to_transfer: int = 0
-    near_rollover: bool = False
-    rollover_occurred: bool = False
+    near_rollover_prefixes: list[str] = field(default_factory=list)
+    rollover_occurred_prefixes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -105,9 +105,15 @@ def find_source_images(src: str, download_locked_only: bool) -> ImageDB:
             else:
                 file_locked = not os.access(src_full_path, os.W_OK)
 
-            # Remember if the number part of the image name is getting near the rollover point.
-            image_db.near_rollover |= image_name[-4] == '9'
-            image_db.rollover_occurred |= image_name[-4:] == "9999"
+            # Camera prefix is the first three characters of the image name
+            camera_prefix = image_name[:3]
+            # Remember if the number part of the image name is getting near the rollover point for this prefix.
+            if image_name[-4] == '9':
+                if camera_prefix not in image_db.near_rollover_prefixes:
+                    image_db.near_rollover_prefixes.append(camera_prefix)
+            if image_name[-4:] == "9999":
+                if camera_prefix not in image_db.rollover_occurred_prefixes:
+                    image_db.rollover_occurred_prefixes.append(camera_prefix)
 
             # If we're downloading only locked images, ignore all the rest.
             if download_locked_only and not file_locked:
