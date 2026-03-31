@@ -135,7 +135,10 @@ def _do_download(args, destination_dirs):
         if caffeinateProcess != None:
             caffeinateProcess.terminate()
 
-    print("All images successfully downloaded.")
+    now = datetime.datetime.now()
+    date_str = now.strftime("%m/%d/%Y")
+    time_str = now.strftime("%I:%M %p").lstrip('0')
+    print(f"All images successfully downloaded. ({date_str} {time_str})")
     return image_db
 
 
