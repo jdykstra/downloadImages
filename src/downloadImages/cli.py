@@ -89,10 +89,36 @@ def _do_download(args, destination_dirs):
             print(Fore.RED + "WARNING:  Downloading locked files only, but no locked files found." + Style.RESET_ALL)
         print(f"{len(image_db.db)} images (potentially in multiple files) found on {source_vol[0]}.")
         print(f"Total size of files to transfer: {image_db.total_to_transfer / 1_073_741_824:.2f} GB.")
-        if image_db.rollover_occurred:
-            print(Fore.RED + "WARNING:  Image numbers rolled over!" + Style.RESET_ALL)
-        elif image_db.near_rollover:
-            print(Fore.RED + "WARNING:  Image numbers are nearing the rollover point!" + Style.RESET_ALL)
+        
+        # Check free space on each destination volume
+        min_required = image_db.total_to_transfer + 200 * 1024 * 1024  # 200 MB buffer
+        insufficient_space = []
+        for dest in destination_dirs:
+            # Find the root volume for the destination directory
+            check_path = dest
+            while not os.path.ismount(check_path) and os.path.dirname(check_path) != check_path:
+                check_path = os.path.dirname(check_path)
+            try:
+                usage = shutil.disk_usage(check_path)
+                if usage.free < min_required:
+                    print(Fore.RED + f"WARNING: Not enough free space on destination volume for {dest}. Required: {(min_required/1_073_741_824):.2f} GB, Available: {(usage.free/1_073_741_824):.2f} GB." + Style.RESET_ALL)
+                    insufficient_space.append(dest)
+            except Exception as e:
+                print(Fore.RED + f"WARNING: Could not determine free space for {dest}: {e}" + Style.RESET_ALL)
+                insufficient_space.append(dest)
+
+        if insufficient_space:
+            while True:
+                user_input = input(Fore.YELLOW + f"One or more destination volumes may not have enough space. Do you want to continue anyway? (y/N): " + Style.RESET_ALL).strip().lower()
+                if user_input in ("y", "yes"):
+                    break
+                elif user_input in ("n", "no", ""):
+                    print(Fore.RED + "Aborting due to insufficient space on destination volume(s)." + Style.RESET_ALL)
+                    return None
+        if image_db.rollover_occurred_prefixes:
+            print(Fore.RED + "WARNING:  Image numbers rolled over for camera prefixes: " + ", ".join(image_db.rollover_occurred_prefixes) + Style.RESET_ALL)
+        elif image_db.near_rollover_prefixes:
+            print(Fore.RED + "WARNING:  Image numbers are nearing the rollover point for camera prefixes: " + ", ".join(image_db.near_rollover_prefixes) + Style.RESET_ALL)
         images = image_db.db
 
         # If we're supposed to delete the source images, make sure that we can.
@@ -135,7 +161,10 @@ def _do_download(args, destination_dirs):
         if caffeinateProcess != None:
             caffeinateProcess.terminate()
 
-    print("All images successfully downloaded.")
+    now = datetime.datetime.now()
+    date_str = now.strftime("%m/%d/%Y")
+    time_str = now.strftime("%I:%M %p").lstrip('0')
+    print(f"All images successfully downloaded. ({date_str} {time_str})")
     return image_db
 
 
@@ -224,8 +253,9 @@ USAGE
             image_db = _do_download(args, destination_dirs)
 
         # Launch Lightroom to ingest all image files.  This will run asynchronously.
-        has_stills = any(ext in STILL_FILE_TYPES for ext in image_db.file_type_count)
-        if args.automate and has_stills:
+        # We do this even if there are no still images, because we use LightRoom
+        # to track motion files, too.
+        if args.automate:
             print(f"Ingesting all images to Lightroom...")
             if 'darwin' in sys.platform:
                 os.system("open -a \"" + LIGHTROOM_APP + "\" \"" +
