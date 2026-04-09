@@ -19,7 +19,7 @@ def _launchResolve():
     Launch DaVinci Resolve if it's not already running and wait for it to be available.
     """
 
-    ATTEMPT_SECONDS = 30.0
+    ATTEMPT_SECONDS = 60.0
 
     while True:
         # First check if Resolve is already available
