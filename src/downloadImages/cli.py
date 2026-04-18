@@ -35,6 +35,7 @@ from .apppaths import LIGHTROOM_APP
 from .download import copy_image_files
 from .resolve_integration import ResolveError, ingestMotionClips
 from .sourceimages import SourceImage, find_source_images, find_source_volume, STILL_FILE_TYPES, MOTION_FILE_TYPES
+from .util import play_notification_sound
 
 __title__ = "downloadImages"
 __author__ = "John Dykstra"
@@ -114,6 +115,7 @@ def _do_download(args, destination_dirs):
                     break
                 elif user_input in ("n", "no", ""):
                     print(Fore.RED + "Aborting due to insufficient space on destination volume(s)." + Style.RESET_ALL)
+                    play_notification_sound()
                     return None
         if image_db.rollover_occurred_prefixes:
             print(Fore.RED + "WARNING:  Image numbers rolled over for camera prefixes: " + ", ".join(image_db.rollover_occurred_prefixes) + Style.RESET_ALL)
@@ -164,6 +166,7 @@ def _do_download(args, destination_dirs):
     now = datetime.datetime.now()
     date_str = now.strftime("%m/%d/%Y")
     time_str = now.strftime("%I:%M %p").lstrip('0')
+    play_notification_sound()
     print(f"All images successfully downloaded. ({date_str} {time_str})")
     return image_db
 
@@ -236,9 +239,11 @@ USAGE
             if not os.path.exists(path):
                 print(
                     f"Error:  Destination path \"{path}\" doesn't exist.")
+                play_notification_sound()
                 return 2
         if args.download_locked_only and args.delete:
             print("Error:  Delete and locked-only options are mutually exclusive.")
+            play_notification_sound()
             return 2
 
         # Compute the destination directory names.
@@ -251,6 +256,10 @@ USAGE
         # Download source images to the destination(s).
         if not args.post_only:
             image_db = _do_download(args, destination_dirs)
+            if image_db is None:
+                return 2
+        else:
+            image_db = None
 
         # Launch Lightroom to ingest all image files.  This will run asynchronously.
         # We do this even if there are no still images, because we use LightRoom
@@ -285,6 +294,7 @@ USAGE
         return 2
     except CliError as e:
         print(e)
+        play_notification_sound()
         indent = len(program_name) * " "
         sys.stderr.write(program_name + ": " + repr(e) + "\n")
         sys.stderr.write(indent + "  for help use --help\n")    
