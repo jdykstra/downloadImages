@@ -14,7 +14,8 @@ authors = [
 
 dependencies = [
     "progressbar2",
-    "colorama"
+    "colorama",
+    "playsound3"
 ]
 
 [project.scripts]
@@ -26,3 +27,6 @@ BugTracker = "https://github.com/jdykstra/downloadImages/issues"
 
 [tool.setuptools.dynamic]
 version = {attr = "downloadImages.__version__"}
+
+[tool.setuptools.package-data]
+downloadImages = ["assets/*.wav"]
