@@ -10,6 +10,7 @@ from datetime import datetime
 from .apppaths import RESOLVE_APP_NAME, RESOLVE_EXE_PATH
 from .python_get_resolve import GetResolve
 from .sourceimages import MOTION_FILE_TYPES
+from .video_metadata import ExtractedVideoMetadata, extract_video_metadata_batch
 
 """ Project preset used.  """
 INGRESS_PROJECT_PRESET="JWD"
@@ -181,6 +182,47 @@ class ResolveError(Exception):
     pass
 
 
+def _apply_clip_metadata(clip, metadata: ExtractedVideoMetadata) -> None:
+    """Best-effort metadata update for a Resolve MediaPoolItem."""
+
+    for key, value in metadata.resolve_metadata.items():
+        try:
+            clip.SetMetadata(key, value)
+        except Exception:
+            continue
+
+    if metadata.third_party_metadata:
+        try:
+            if clip.SetThirdPartyMetadata(metadata.third_party_metadata):
+                return
+        except Exception:
+            pass
+
+        for key, value in metadata.third_party_metadata.items():
+            try:
+                clip.SetThirdPartyMetadata(key, value)
+            except Exception:
+                continue
+
+
+def _extract_motion_metadata(path: str, description: str | None) -> dict[str, ExtractedVideoMetadata]:
+    motion_files = [
+        entry.path
+        for entry in os.scandir(path)
+        if entry.is_file()
+        and os.path.splitext(entry.name)[1][1:].upper() in MOTION_FILE_TYPES
+    ]
+
+    if not motion_files:
+        return {}
+
+    try:
+        return extract_video_metadata_batch(motion_files, description)
+    except Exception as exc:
+        print(f"Warning: could not extract motion metadata with exiftool: {exc}")
+        return {}
+
+
 def ingestMotionClips(tag, dayStamp, description, path):
 
     # This properly handles the case where a previous ingest failed (e.g. because Resolve
@@ -191,6 +233,8 @@ def ingestMotionClips(tag, dayStamp, description, path):
     # apparently handles that gracefully.
     
     try:
+        metadata_by_path = _extract_motion_metadata(path, description)
+
         resolve = _launchResolve()
         if not resolve:
             raise ResolveError("Failed to launch or connect to DaVinci Resolve")
@@ -243,16 +287,36 @@ def ingestMotionClips(tag, dayStamp, description, path):
             ]
 
             if not files_to_import:
-                return
+                files_to_import = []
             
             # Move imported clips to the target folder
-            clips = mediaPool.ImportMedia(files_to_import)
-            if not clips:
-                raise ResolveError(f"Resolve failed to import media files from directory: {path}")
+            clips = []
+            if files_to_import:
+                clips = mediaPool.ImportMedia(files_to_import)
+                if not clips:
+                    raise ResolveError(f"Resolve failed to import media files from directory: {path}")
 
-            success = mediaPool.MoveClips(clips, targetFolder)
-            if not success:
-                raise ResolveError(f"Failed to move clips to folder '{dayStamp}'")
+                success = mediaPool.MoveClips(clips, targetFolder)
+                if not success:
+                    raise ResolveError(f"Failed to move clips to folder '{dayStamp}'")
+
+            try:
+                target_clips = targetFolder.GetClipList() or []
+            except Exception:
+                target_clips = clips or []
+
+            clips_by_name = {
+                clip.GetName().upper(): clip
+                for clip in target_clips
+                if clip and clip.GetName()
+            }
+
+            for source_path, extracted_metadata in metadata_by_path.items():
+                clip_name = os.path.basename(source_path).upper()
+                clip = clips_by_name.get(clip_name)
+                if clip is None:
+                    continue
+                _apply_clip_metadata(clip, extracted_metadata)
         
         except Exception as e:
             raise ResolveError(f"Exception while organizing clips into folder: {e}")

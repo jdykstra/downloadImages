@@ -64,6 +64,16 @@ class CliError(Exception):
         return self.msg
 
 
+def _directory_has_motion_files(path: str) -> bool:
+    for entry in os.scandir(path):
+        if not entry.is_file():
+            continue
+        extension = os.path.splitext(entry.name)[1][1:].upper()
+        if extension in MOTION_FILE_TYPES:
+            return True
+    return False
+
+
 def _do_download(args, destination_dirs):
     caffeinateProcess = None
     if 'darwin' in sys.platform:
@@ -274,7 +284,10 @@ USAGE
                           os.path.join(args.destinations[0], dir_name) + "\"")
 
         # Launch DaVinci Resolve to ingest all motion clips.  This will run asynchronously.
-        has_motions = any(ext in MOTION_FILE_TYPES for ext in image_db.file_type_count)
+        if image_db is not None:
+            has_motions = any(ext in MOTION_FILE_TYPES for ext in image_db.file_type_count)
+        else:
+            has_motions = _directory_has_motion_files(destination_dirs[0])
         if args.automateResolve and has_motions:
             print(f"Ingesting motion to Resolve project {args.tag}...")
             today = datetime.date.today()
