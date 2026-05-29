@@ -34,7 +34,7 @@ from . import __version__
 from .apppaths import LIGHTROOM_APP
 from .download import copy_image_files
 from .resolve_integration import ResolveError, ingestMotionClips
-from .sourceimages import SourceImage, find_source_images, find_source_volume, STILL_FILE_TYPES, MOTION_FILE_TYPES
+from .sourceimages import CliError, SourceImage, find_source_images, find_source_volume, STILL_FILE_TYPES, MOTION_FILE_TYPES
 from .util import play_notification_sound
 
 __title__ = "downloadImages"
@@ -48,21 +48,6 @@ DEBUG: bool = False
 if DEBUG:
     import pdb
     import traceback
-
-
-class CliError(Exception):
-    '''Generic exception to raise and log different fatal errors.'''
-
-    def __init__(self, msg):
-        super().__init__(type(self))
-        self.msg = "ERROR: %s" % msg
-
-    def __str__(self):
-        return self.msg
-
-    def __unicode__(self):
-        return self.msg
-
 
 def _directory_has_motion_files(path: str) -> bool:
     for entry in os.scandir(path):

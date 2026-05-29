@@ -4,7 +4,7 @@ import stat
 import sys
 from progressbar import AbsoluteETA, AdaptiveTransferSpeed, GranularBar, ProgressBar
 
-from .sourceimages import SourceImage, STILL_FILE_TYPES
+from .sourceimages import CliError, SourceImage, STILL_FILE_TYPES
 
 
 # Tweak the AbsoluteETA widget to only show the time part of the time and date.
@@ -85,6 +85,11 @@ def copy_image_files(
                         if image.size == dst_size:
                             skip_copy = True
                             skipped_count += 1
+                        else:
+                            raise CliError(
+                                "Destination file already exists with different size: "
+                                f"source {src_full_path}, destination {dst_full_path}"
+                            )
 
                     # Copy the image file unless it's a duplicate.  If we're only copying locked files, skip unlocked files.
                     if not skip_copy and (not download_locked_only or image.file_locked):

@@ -124,6 +124,11 @@ def find_source_images(src: str, download_locked_only: bool) -> ImageDB:
             # Have we already seen a file for this image (with a different extension)?
             try:
                 image = image_db.db[image_name]
+                if image.src_filename != src_filename or image.src_path != dirpath:
+                    raise CliError(
+                        "Source contains multiple files that would map to "
+                        f"destination name {dst_filename}"
+                    )
                 if image.contains_file_extension(extension):
                     raise CliError(
                         f"Source contains more than one {src_filename}.{extension}")
