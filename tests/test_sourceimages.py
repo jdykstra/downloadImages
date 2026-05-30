@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from downloadImages.sourceimages import CliError, find_source_images
 
@@ -34,3 +35,23 @@ class SourceImagesTests(unittest.TestCase):
                 find_source_images(str(Path(temp_dir) / "DCIM"), download_locked_only=False)
 
         self.assertIn("destination name ABC0000", str(context.exception))
+
+    def test_find_source_images_rejects_mixed_case_duplicate_extensions(self):
+        walk_rows = [
+            ("/mock/DCIM/100TEST", [], ["ABC1234.JPG", "ABC1234.jpg"]),
+        ]
+
+        class _StatInfo:
+
+            def __init__(self, size):
+                self.st_size = size
+                self.st_flags = 0
+
+        with patch("downloadImages.sourceimages.os.walk", return_value=walk_rows), patch(
+            "downloadImages.sourceimages.os.stat",
+            side_effect=[_StatInfo(5), _StatInfo(5)],
+        ), patch("downloadImages.sourceimages.os.access", return_value=True):
+            with self.assertRaises(CliError) as context:
+                find_source_images("/mock/DCIM", download_locked_only=False)
+
+        self.assertIn("differ only by case", str(context.exception))

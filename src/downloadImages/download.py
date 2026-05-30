@@ -77,12 +77,13 @@ def copy_image_files(
                     src_full_path = os.path.join(
                         image.src_path, image.src_filename + "." + extension)
                     dst_full_path = os.path.join(dest, image.dst_filename + "." + extension)
+                    src_size = os.stat(src_full_path).st_size
 
                     # Check if destination file already exists and has the same size
                     skip_copy = False
                     if os.path.exists(dst_full_path):
                         dst_size = os.stat(dst_full_path).st_size
-                        if image.size == dst_size:
+                        if src_size == dst_size:
                             skip_copy = True
                             skipped_count += 1
                         else:

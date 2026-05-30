@@ -49,6 +49,13 @@ class SourceImage:
     def contains_file_extension(self, extension: str) -> bool:
         return extension in self.extensions
 
+    def find_file_extension_case_insensitive(self, extension: str) -> str | None:
+        extension_upper = extension.upper()
+        for existing_extension in self.extensions:
+            if existing_extension.upper() == extension_upper:
+                return existing_extension
+        return None
+
 
 # Find potential source DCF volumes, returning a list of (name, path) tuples.
 def find_source_volume() -> list[tuple[str, str]]:
@@ -128,6 +135,12 @@ def find_source_images(src: str, download_locked_only: bool) -> ImageDB:
                     raise CliError(
                         "Source contains multiple files that would map to "
                         f"destination name {dst_filename}"
+                    )
+                existing_extension = image.find_file_extension_case_insensitive(extension)
+                if existing_extension is not None and existing_extension != extension:
+                    raise CliError(
+                        "Source contains duplicate file extensions that differ only by case: "
+                        f"{src_filename}.{existing_extension} and {src_filename}.{extension}"
                     )
                 if image.contains_file_extension(extension):
                     raise CliError(
