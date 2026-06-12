@@ -212,7 +212,6 @@ def main(argv: list[str] | None = None) -> int:
 USAGE
 '''
 
-    print("downloadImages v%s" % (__version__))
     colorama.init()
     caffeinateProcess = None
     if sys.platform not in ["darwin", "win32"]:
