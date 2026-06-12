@@ -280,18 +280,20 @@ USAGE
             warnings_shown = False
 
         if image_db is not None:
+            has_stills = any(ext in STILL_FILE_TYPES for ext in image_db.file_type_count)
             has_motions = any(ext in MOTION_FILE_TYPES for ext in image_db.file_type_count)
         else:
+            has_stills = False
             has_motions = False
 
-        if warnings_shown and (args.automate or (args.automateResolve and has_motions)):
+        if warnings_shown and ((args.automate and (has_stills or has_motions)) or (args.automateResolve and has_motions)):
             if not _wait_for_ingest_confirmation():
                 return 2
 
         # Launch Lightroom to ingest all image files.  This will run asynchronously.
         # We do this even if there are no still images, because we use LightRoom
         # to track motion files, too.
-        if args.automate:
+        if args.automate and (has_stills or has_motions):
             print(f"Ingesting all images to Lightroom...")
             if 'darwin' in sys.platform:
                 os.system("open -a \"" + LIGHTROOM_APP + "\" \"" +
