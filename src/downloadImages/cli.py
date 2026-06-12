@@ -35,7 +35,7 @@ from .apppaths import LIGHTROOM_APP
 from .download import copy_image_files
 from .resolve_integration import ResolveError, ingestMotionClips
 from .sourceimages import CliError, SourceImage, find_source_images, find_source_volume, STILL_FILE_TYPES, MOTION_FILE_TYPES
-from .util import play_notification_sound
+from .util import play_notification_sound, play_warning_pause_sound
 
 __title__ = "downloadImages"
 __author__ = "John Dykstra"
@@ -61,6 +61,8 @@ def _wait_for_ingest_confirmation() -> bool:
         + "Warnings were shown during download. Enter 'ok' to continue with Lightroom/Resolve ingest: "
         + Style.RESET_ALL
     )
+
+    play_warning_pause_sound()
 
     while True:
         try:
