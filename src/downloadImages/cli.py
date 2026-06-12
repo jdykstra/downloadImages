@@ -35,7 +35,7 @@ from .apppaths import LIGHTROOM_APP
 from .download import copy_image_files
 from .resolve_integration import ResolveError, ingestMotionClips
 from .sourceimages import CliError, SourceImage, find_source_images, find_source_volume, STILL_FILE_TYPES, MOTION_FILE_TYPES
-from .util import play_notification_sound
+from .util import play_notification_sound, play_warning_pause_sound
 
 __title__ = "downloadImages"
 __author__ = "John Dykstra"
@@ -49,6 +49,31 @@ if DEBUG:
     import pdb
     import traceback
 
+
+def _print_warning(message: str) -> bool:
+    print(Fore.RED + f"WARNING: {message}" + Style.RESET_ALL)
+    return True
+
+
+def _wait_for_ingest_confirmation() -> bool:
+    prompt = (
+        Fore.YELLOW
+        + "Warnings were shown during download. Enter 'ok' to continue with Lightroom/Resolve ingest: "
+        + Style.RESET_ALL
+    )
+
+    play_warning_pause_sound()
+
+    while True:
+        try:
+            if input(prompt).strip().lower() == "ok":
+                return True
+            print("Please enter 'ok' to continue.")
+        except (EOFError, KeyboardInterrupt):
+            print("\nAborting post-processing ingest.")
+            return False
+
+
 def _directory_has_motion_files(path: str) -> bool:
     for entry in os.scandir(path):
         if not entry.is_file():
@@ -61,6 +86,7 @@ def _directory_has_motion_files(path: str) -> bool:
 
 def _do_download(args, destination_dirs):
     caffeinateProcess = None
+    warnings_shown = False
     if 'darwin' in sys.platform:
         caffeinateProcess = subprocess.Popen(('caffeinate', '-i'))
 
@@ -82,7 +108,7 @@ def _do_download(args, destination_dirs):
         if image_db.locked_file_count > 0:
             print(f"{image_db.locked_file_count} files are locked.")
         elif args.download_locked_only:
-            print(Fore.RED + "WARNING:  Downloading locked files only, but no locked files found." + Style.RESET_ALL)
+            warnings_shown = _print_warning(" Downloading locked files only, but no locked files found.")
         print(f"{len(image_db.db)} images (potentially in multiple files) found on {source_vol[0]}.")
         print(f"Total size of files to transfer: {image_db.total_to_transfer / 1_073_741_824:.2f} GB.")
         
@@ -97,10 +123,12 @@ def _do_download(args, destination_dirs):
             try:
                 usage = shutil.disk_usage(check_path)
                 if usage.free < min_required:
-                    print(Fore.RED + f"WARNING: Not enough free space on destination volume for {dest}. Required: {(min_required/1_073_741_824):.2f} GB, Available: {(usage.free/1_073_741_824):.2f} GB." + Style.RESET_ALL)
+                    warnings_shown = _print_warning(
+                        f" Not enough free space on destination volume for {dest}. Required: {(min_required/1_073_741_824):.2f} GB, Available: {(usage.free/1_073_741_824):.2f} GB."
+                    )
                     insufficient_space.append(dest)
             except Exception as e:
-                print(Fore.RED + f"WARNING: Could not determine free space for {dest}: {e}" + Style.RESET_ALL)
+                warnings_shown = _print_warning(f" Could not determine free space for {dest}: {e}")
                 insufficient_space.append(dest)
 
         if insufficient_space:
@@ -111,11 +139,15 @@ def _do_download(args, destination_dirs):
                 elif user_input in ("n", "no", ""):
                     print(Fore.RED + "Aborting due to insufficient space on destination volume(s)." + Style.RESET_ALL)
                     play_notification_sound()
-                    return None
+                    return None, warnings_shown
         if image_db.rollover_occurred_prefixes:
-            print(Fore.RED + "WARNING:  Image numbers rolled over for camera prefixes: " + ", ".join(image_db.rollover_occurred_prefixes) + Style.RESET_ALL)
+            warnings_shown = _print_warning(
+                " Image numbers rolled over for camera prefixes: " + ", ".join(image_db.rollover_occurred_prefixes)
+            )
         elif image_db.near_rollover_prefixes:
-            print(Fore.RED + "WARNING:  Image numbers are nearing the rollover point for camera prefixes: " + ", ".join(image_db.near_rollover_prefixes) + Style.RESET_ALL)
+            warnings_shown = _print_warning(
+                " Image numbers are nearing the rollover point for camera prefixes: " + ", ".join(image_db.near_rollover_prefixes)
+            )
         images = image_db.db
 
         # If we're supposed to delete the source images, make sure that we can.
@@ -163,7 +195,7 @@ def _do_download(args, destination_dirs):
     time_str = now.strftime("%I:%M %p").lstrip('0')
     play_notification_sound()
     print(f"All images successfully downloaded. ({date_str} {time_str})")
-    return image_db
+    return image_db, warnings_shown
 
 
 #  CLI Interface
@@ -250,11 +282,21 @@ USAGE
 
         # Download source images to the destination(s).
         if not args.post_only:
-            image_db = _do_download(args, destination_dirs)
+            image_db, warnings_shown = _do_download(args, destination_dirs)
             if image_db is None:
                 return 2
         else:
             image_db = None
+            warnings_shown = False
+
+        if image_db is not None:
+            has_motions = any(ext in MOTION_FILE_TYPES for ext in image_db.file_type_count)
+        else:
+            has_motions = _directory_has_motion_files(destination_dirs[0])
+
+        if warnings_shown and (args.automate or (args.automateResolve and has_motions)):
+            if not _wait_for_ingest_confirmation():
+                return 2
 
         # Launch Lightroom to ingest all image files.  This will run asynchronously.
         # We do this even if there are no still images, because we use LightRoom
@@ -269,10 +311,6 @@ USAGE
                           os.path.join(args.destinations[0], dir_name) + "\"")
 
         # Launch DaVinci Resolve to ingest all motion clips.  This will run asynchronously.
-        if image_db is not None:
-            has_motions = any(ext in MOTION_FILE_TYPES for ext in image_db.file_type_count)
-        else:
-            has_motions = _directory_has_motion_files(destination_dirs[0])
         if args.automateResolve and has_motions:
             print(f"Ingesting motion to Resolve project {args.tag}...")
             today = datetime.date.today()
