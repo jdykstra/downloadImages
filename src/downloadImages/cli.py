@@ -74,16 +74,6 @@ def _wait_for_ingest_confirmation() -> bool:
             return False
 
 
-def _directory_has_motion_files(path: str) -> bool:
-    for entry in os.scandir(path):
-        if not entry.is_file():
-            continue
-        extension = os.path.splitext(entry.name)[1][1:].upper()
-        if extension in MOTION_FILE_TYPES:
-            return True
-    return False
-
-
 def _do_download(args, destination_dirs):
     caffeinateProcess = None
     warnings_shown = False
@@ -292,7 +282,7 @@ USAGE
         if image_db is not None:
             has_motions = any(ext in MOTION_FILE_TYPES for ext in image_db.file_type_count)
         else:
-            has_motions = _directory_has_motion_files(destination_dirs[0])
+            has_motions = False
 
         if warnings_shown and (args.automate or (args.automateResolve and has_motions)):
             if not _wait_for_ingest_confirmation():
