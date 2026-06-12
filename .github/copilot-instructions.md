@@ -29,6 +29,7 @@ videoExtensions = ['MOV', 'MP4']
 - Images get XMP sidecars; videos do not
 - Filenames normalized by removing underscores (Nikon convention)
 - Case-insensitive extension matching
+- If no image database is created, then there are no still or motion image files.
 
 ### Platform-Specific Code
 ```python
