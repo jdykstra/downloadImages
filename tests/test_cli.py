@@ -15,7 +15,7 @@ class CliMainTests(unittest.TestCase):
         ), patch("downloadImages.cli.os.system") as os_system_mock, patch(
             "downloadImages.cli.ingestMotionClips"
         ) as ingest_motion_mock:
-            result = main(["downloadImages", "-a", "-r", "C:/dest"])
+            result = main(["downloadImages", "-a", "C:/dest"])
 
         self.assertEqual(result, 0)
         os_system_mock.assert_not_called()
@@ -31,7 +31,7 @@ class CliMainTests(unittest.TestCase):
         ) as warning_sound_mock, patch(
             "downloadImages.cli.os.system"
         ) as os_system_mock, patch("downloadImages.cli.ingestMotionClips") as ingest_motion_mock:
-            result = main(["downloadImages", "-a", "-r", "C:/dest"])
+            result = main(["downloadImages", "-a", "C:/dest"])
 
         self.assertEqual(result, 0)
         self.assertEqual(input_mock.call_count, 2)
@@ -49,10 +49,15 @@ class CliMainTests(unittest.TestCase):
         ) as warning_sound_mock, patch(
             "downloadImages.cli.os.system"
         ) as os_system_mock, patch("downloadImages.cli.ingestMotionClips") as ingest_motion_mock:
-            result = main(["downloadImages", "-a", "-r", "C:/dest"])
+            result = main(["downloadImages", "-a", "C:/dest"])
 
         self.assertEqual(result, 0)
         input_mock.assert_not_called()
         warning_sound_mock.assert_not_called()
         os_system_mock.assert_called_once()
         ingest_motion_mock.assert_called_once()
+
+    def test_main_rejects_removed_resolve_option(self):
+        with self.assertRaises(SystemExit) as e:
+            main(["downloadImages", "-r", "C:/dest"])
+        self.assertEqual(e.exception.code, 2)
