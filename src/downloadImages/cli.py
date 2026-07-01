@@ -151,7 +151,7 @@ def _do_download(args, destination_dirs):
                 os.makedirs(d)
         
         # Copy the image files from the source to the destinations and create the sidecar files.
-        skipped_count = copy_image_files(images, destination_dirs, args.description, image_db.total_to_transfer, args.download_locked_only, args.delete)
+        skipped_count = copy_image_files(images, destination_dirs, args.description, image_db.total_to_transfer, args.download_locked_only, args.delete, args.exiftool)
         if skipped_count > 0:
             print(f"{skipped_count} destination files already existed and were skipped.")
 
@@ -235,6 +235,9 @@ USAGE
                             action='store_true', help="Import all images into Lightroom.")
         parser.add_argument("-r", "--resolve", dest="automateResolve",
                     action='store_true', help="Import all motion clips into DaVinci Resolve.")
+        parser.add_argument("-e", "--exiftool", dest="exiftool", action='store_true',
+                            help="Read EXIF metadata via exiftool and embed it in each still's XMP sidecar. "
+                                 "Use with/without this flag to compare download timing.")
         parser.add_argument("-p", "--post-only", dest="post_only", action='store_true',
                             help="Skip copying and only perform post-processing steps (automate, resolve).")
         parser.add_argument('-V', '--version', action='version',

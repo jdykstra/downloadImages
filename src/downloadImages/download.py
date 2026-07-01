@@ -2,9 +2,11 @@ import os
 import shutil
 import stat
 import sys
+import time
 from progressbar import AbsoluteETA, AdaptiveTransferSpeed, GranularBar, ProgressBar
 
 from .sourceimages import CliError, SourceImage, STILL_FILE_TYPES
+from .video_metadata import VideoMetadataError, extract_still_metadata_summary
 
 
 # Tweak the AbsoluteETA widget to only show the time part of the time and date.
@@ -64,11 +66,14 @@ def copy_image_files(
     description: str,
     total_to_transfer: int,
     download_locked_only: bool = False,
-    delete_src: bool = False
+    delete_src: bool = False,
+    use_exiftool: bool = False,
 ) -> int:
 
     already_copied = 0
     skipped_count = 0
+    exiftool_call_count = 0
+    exiftool_total_time = 0.0
     with _ProgressTracker(len(destination_dirs) * total_to_transfer) as tracker:
         for image_name in iter(images):
             image = images[image_name]
@@ -117,6 +122,22 @@ def copy_image_files(
                     # Create the sidecar file for stills only.
                     if extension.upper() in STILL_FILE_TYPES and not skip_copy:
                         xmp_label = "     xmp:Label=\"Purple\"\n" if image.file_locked else ""
+
+                        # Optionally gather Nikon-specific shooting info via exiftool and
+                        # append it to dc:description (Lightroom Caption field).
+                        xmp_description = description or ""
+                        if use_exiftool:
+                            t0 = time.monotonic()
+                            try:
+                                metadata_summary = extract_still_metadata_summary(src_full_path)
+                            except VideoMetadataError:
+                                metadata_summary = ""
+                            exiftool_total_time += time.monotonic() - t0
+                            exiftool_call_count += 1
+                            if metadata_summary:
+                                xmp_description = (f"{xmp_description}&#xA;{metadata_summary}"
+                                                   if xmp_description else metadata_summary)
+
                         xmp_content = f"""<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">
 <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">
 
@@ -126,7 +147,7 @@ def copy_image_files(
 {xmp_label}     >
     <dc:description>
     <rdf:Alt>
-    <rdf:li xml:lang=\"x-default\">{description}&#xA;</rdf:li>
+    <rdf:li xml:lang=\"x-default\">{xmp_description}&#xA;</rdf:li>
     </rdf:Alt>
 </dc:description>
 </rdf:Description>
@@ -140,6 +161,12 @@ def copy_image_files(
 
     sys.stdout.write("\n")      # Needed after progress bar output
     sys.stdout.flush()
+
+    if use_exiftool and exiftool_call_count > 0:
+        ms_per_image = exiftool_total_time / exiftool_call_count * 1000
+        print(f"exiftool: {exiftool_call_count} calls, "
+              f"{exiftool_total_time:.2f}s total, "
+              f"{ms_per_image:.1f}ms/image")
 
     return skipped_count
 

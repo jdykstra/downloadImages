@@ -213,3 +213,10 @@ def _short_camera_name(camera_name: str) -> str:
     if camera_name.upper().startswith("NIKON "):
         return camera_name[6:].strip()
     return camera_name
+
+
+def extract_still_metadata_summary(file_path: str) -> str:
+    """Run exiftool on a still image and return a Nikon-style shooting summary string."""
+    extracted = extract_video_metadata_batch([file_path])
+    metadata = extracted.get(file_path)
+    return metadata.summary if metadata else ""
