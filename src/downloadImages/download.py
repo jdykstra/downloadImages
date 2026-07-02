@@ -8,6 +8,9 @@ from progressbar import AbsoluteETA, AdaptiveTransferSpeed, GranularBar, Progres
 from .sourceimages import CliError, SourceImage, STILL_FILE_TYPES
 from .video_metadata import VideoMetadataError, extract_still_metadata_summaries
 
+# Set to False to disable exiftool metadata gathering without removing the feature.
+_USE_EXIFTOOL: bool = True
+
 
 # Tweak the AbsoluteETA widget to only show the time part of the time and date.
 class _CustomAbsoluteEta(AbsoluteETA):
@@ -67,7 +70,6 @@ def copy_image_files(
     total_to_transfer: int,
     download_locked_only: bool = False,
     delete_src: bool = False,
-    use_exiftool: bool = False,
 ) -> int:
 
     already_copied = 0
@@ -78,7 +80,7 @@ def copy_image_files(
     # Pre-fetch Nikon metadata for all stills in a single exiftool batch call,
     # avoiding per-file process-startup overhead.
     exif_summaries: dict[str, str] = {}
-    if use_exiftool:
+    if _USE_EXIFTOOL:
         still_src_paths = [
             os.path.join(image.src_path, image.src_filename + "." + ext)
             for image in images.values()
@@ -148,7 +150,7 @@ def copy_image_files(
                         # Optionally look up the pre-fetched Nikon shooting summary
                         # and append it to dc:description (Lightroom Caption field).
                         xmp_description = description or ""
-                        if use_exiftool:
+                        if _USE_EXIFTOOL:
                             metadata_summary = exif_summaries.get(src_full_path, "")
                             if metadata_summary:
                                 xmp_description = (f"{xmp_description}&#xA;{metadata_summary}"
@@ -178,7 +180,7 @@ def copy_image_files(
     sys.stdout.write("\n")      # Needed after progress bar output
     sys.stdout.flush()
 
-    if use_exiftool and exiftool_call_count > 0:
+    if _USE_EXIFTOOL and exiftool_call_count > 0:
         ms_per_image = exiftool_total_time / exiftool_call_count * 1000
         print(f"exiftool: {exiftool_call_count} calls, "
               f"{exiftool_total_time:.2f}s total, "
