@@ -163,7 +163,6 @@ def _build_still_summary(normalized: dict[str, str]) -> str:
     picture_control = _first_tag_value(normalized, ["Nikon:PictureControlName"])
     vibration_reduction = _first_tag_value(normalized, ["Nikon:VibrationReduction", "Nikon:ElectronicVR"])
     white_balance = _first_tag_value(normalized, ["Nikon:WhiteBalance"])
-    camera = _first_tag_value(normalized, ["Nikon:Model", "QuickTime:Model", "Composite:Model"])
 
     if af_area_mode:
         parts.append(af_area_mode)
@@ -177,8 +176,6 @@ def _build_still_summary(normalized: dict[str, str]) -> str:
         parts.append(f"VR {vibration_reduction}")
     if white_balance:
         parts.append(white_balance)
-    if camera:
-        parts.append(_short_camera_name(camera))
 
     return ", ".join(parts)
 
