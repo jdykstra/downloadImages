@@ -150,11 +150,19 @@ def copy_image_files(
                         # Optionally look up the pre-fetched Nikon shooting summary
                         # and append it to dc:description (Lightroom Caption field).
                         xmp_description = description or ""
+                        exif_ns = ""
+                        exif_user_comment_block = ""
                         if _USE_EXIFTOOL:
                             metadata_summary = exif_summaries.get(os.path.normpath(src_full_path), "")
                             if metadata_summary:
-                                xmp_description = (f"{xmp_description}&#xA;{metadata_summary}"
-                                                   if xmp_description else metadata_summary)
+                                exif_ns = '    xmlns:exif="http://ns.adobe.com/exif/1.0/"\n'
+                                exif_user_comment_block = (
+                                    f"    <exif:UserComment>\n"
+                                    f"    <rdf:Alt>\n"
+                                    f"    <rdf:li xml:lang=\"x-default\">{metadata_summary}</rdf:li>\n"
+                                    f"    </rdf:Alt>\n"
+                                    f"</exif:UserComment>\n"
+                                )
 
                         xmp_content = f"""<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">
 <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">
@@ -162,13 +170,13 @@ def copy_image_files(
 <rdf:Description rdf:about=\"\"
     xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"
     xmlns:dc=\"http://purl.org/dc/elements/1.1/\"
-{xmp_label}     >
+{exif_ns}{xmp_label}     >
     <dc:description>
     <rdf:Alt>
     <rdf:li xml:lang=\"x-default\">{xmp_description}&#xA;</rdf:li>
     </rdf:Alt>
 </dc:description>
-</rdf:Description>
+{exif_user_comment_block}</rdf:Description>
 
 </rdf:RDF>
 </x:xmpmeta>
