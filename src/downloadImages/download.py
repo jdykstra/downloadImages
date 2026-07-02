@@ -2,9 +2,14 @@ import os
 import shutil
 import stat
 import sys
+import time
 from progressbar import AbsoluteETA, AdaptiveTransferSpeed, GranularBar, ProgressBar
 
 from .sourceimages import CliError, SourceImage, STILL_FILE_TYPES
+from .video_metadata import VideoMetadataError, extract_still_metadata_summaries
+
+# Set to False to disable exiftool metadata gathering without removing the feature.
+_USE_EXIFTOOL: bool = True
 
 
 # Tweak the AbsoluteETA widget to only show the time part of the time and date.
@@ -64,11 +69,35 @@ def copy_image_files(
     description: str,
     total_to_transfer: int,
     download_locked_only: bool = False,
-    delete_src: bool = False
+    delete_src: bool = False,
 ) -> int:
 
     already_copied = 0
     skipped_count = 0
+    exiftool_call_count = 0
+    exiftool_total_time = 0.0
+
+    # Pre-fetch Nikon metadata for all stills in a single exiftool batch call,
+    # avoiding per-file process-startup overhead.
+    exif_summaries: dict[str, str] = {}
+    if _USE_EXIFTOOL:
+        still_src_paths = [
+            os.path.join(image.src_path, image.src_filename + "." + ext)
+            for image in images.values()
+            for ext in image.extensions
+            if ext.upper() in STILL_FILE_TYPES
+        ]
+        if still_src_paths:
+            print(f"Gathering metadata for {len(still_src_paths)} still image(s) via exiftool...")
+            sys.stdout.flush()
+            t0 = time.monotonic()
+            try:
+                exif_summaries = extract_still_metadata_summaries(still_src_paths)
+            except VideoMetadataError:
+                pass
+            exiftool_total_time = time.monotonic() - t0
+            exiftool_call_count = len(still_src_paths)
+
     with _ProgressTracker(len(destination_dirs) * total_to_transfer) as tracker:
         for image_name in iter(images):
             image = images[image_name]
@@ -117,19 +146,37 @@ def copy_image_files(
                     # Create the sidecar file for stills only.
                     if extension.upper() in STILL_FILE_TYPES and not skip_copy:
                         xmp_label = "     xmp:Label=\"Purple\"\n" if image.file_locked else ""
+
+                        # Optionally look up the pre-fetched Nikon shooting summary
+                        # and append it to dc:description (Lightroom Caption field).
+                        xmp_description = description or ""
+                        exif_ns = ""
+                        exif_user_comment_block = ""
+                        if _USE_EXIFTOOL:
+                            metadata_summary = exif_summaries.get(os.path.normpath(src_full_path), "")
+                            if metadata_summary:
+                                exif_ns = '    xmlns:exif="http://ns.adobe.com/exif/1.0/"\n'
+                                exif_user_comment_block = (
+                                    f"    <exif:UserComment>\n"
+                                    f"    <rdf:Alt>\n"
+                                    f"    <rdf:li xml:lang=\"x-default\">{metadata_summary}</rdf:li>\n"
+                                    f"    </rdf:Alt>\n"
+                                    f"</exif:UserComment>\n"
+                                )
+
                         xmp_content = f"""<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">
 <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">
 
 <rdf:Description rdf:about=\"\"
     xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"
     xmlns:dc=\"http://purl.org/dc/elements/1.1/\"
-{xmp_label}     >
+{exif_ns}{xmp_label}     >
     <dc:description>
     <rdf:Alt>
-    <rdf:li xml:lang=\"x-default\">{description}&#xA;</rdf:li>
+    <rdf:li xml:lang=\"x-default\">{xmp_description}&#xA;</rdf:li>
     </rdf:Alt>
 </dc:description>
-</rdf:Description>
+{exif_user_comment_block}</rdf:Description>
 
 </rdf:RDF>
 </x:xmpmeta>
@@ -140,6 +187,12 @@ def copy_image_files(
 
     sys.stdout.write("\n")      # Needed after progress bar output
     sys.stdout.flush()
+
+    if _USE_EXIFTOOL and exiftool_call_count > 0:
+        ms_per_image = exiftool_total_time / exiftool_call_count * 1000
+        print(f"exiftool: {exiftool_call_count} calls, "
+              f"{exiftool_total_time:.2f}s total, "
+              f"{ms_per_image:.1f}ms/image")
 
     return skipped_count
 
