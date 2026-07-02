@@ -6,7 +6,7 @@ import time
 from progressbar import AbsoluteETA, AdaptiveTransferSpeed, GranularBar, ProgressBar
 
 from .sourceimages import CliError, SourceImage, STILL_FILE_TYPES
-from .video_metadata import VideoMetadataError, extract_still_metadata_summary
+from .video_metadata import VideoMetadataError, extract_still_metadata_summaries
 
 
 # Tweak the AbsoluteETA widget to only show the time part of the time and date.
@@ -74,6 +74,28 @@ def copy_image_files(
     skipped_count = 0
     exiftool_call_count = 0
     exiftool_total_time = 0.0
+
+    # Pre-fetch Nikon metadata for all stills in a single exiftool batch call,
+    # avoiding per-file process-startup overhead.
+    exif_summaries: dict[str, str] = {}
+    if use_exiftool:
+        still_src_paths = [
+            os.path.join(image.src_path, image.src_filename + "." + ext)
+            for image in images.values()
+            for ext in image.extensions
+            if ext.upper() in STILL_FILE_TYPES
+        ]
+        if still_src_paths:
+            print(f"Gathering metadata for {len(still_src_paths)} still image(s) via exiftool...")
+            sys.stdout.flush()
+            t0 = time.monotonic()
+            try:
+                exif_summaries = extract_still_metadata_summaries(still_src_paths)
+            except VideoMetadataError:
+                pass
+            exiftool_total_time = time.monotonic() - t0
+            exiftool_call_count = len(still_src_paths)
+
     with _ProgressTracker(len(destination_dirs) * total_to_transfer) as tracker:
         for image_name in iter(images):
             image = images[image_name]
@@ -123,17 +145,11 @@ def copy_image_files(
                     if extension.upper() in STILL_FILE_TYPES and not skip_copy:
                         xmp_label = "     xmp:Label=\"Purple\"\n" if image.file_locked else ""
 
-                        # Optionally gather Nikon-specific shooting info via exiftool and
-                        # append it to dc:description (Lightroom Caption field).
+                        # Optionally look up the pre-fetched Nikon shooting summary
+                        # and append it to dc:description (Lightroom Caption field).
                         xmp_description = description or ""
                         if use_exiftool:
-                            t0 = time.monotonic()
-                            try:
-                                metadata_summary = extract_still_metadata_summary(src_full_path)
-                            except VideoMetadataError:
-                                metadata_summary = ""
-                            exiftool_total_time += time.monotonic() - t0
-                            exiftool_call_count += 1
+                            metadata_summary = exif_summaries.get(src_full_path, "")
                             if metadata_summary:
                                 xmp_description = (f"{xmp_description}&#xA;{metadata_summary}"
                                                    if xmp_description else metadata_summary)

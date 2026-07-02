@@ -220,3 +220,14 @@ def extract_still_metadata_summary(file_path: str) -> str:
     extracted = extract_video_metadata_batch([file_path])
     metadata = extracted.get(file_path)
     return metadata.summary if metadata else ""
+
+
+def extract_still_metadata_summaries(file_paths: list[str]) -> dict[str, str]:
+    """Run exiftool once across all paths, returning {path: summary_string}.
+
+    Paths with no usable metadata map to an empty string.
+    """
+    if not file_paths:
+        return {}
+    extracted = extract_video_metadata_batch(file_paths)
+    return {path: meta.summary for path, meta in extracted.items()}
