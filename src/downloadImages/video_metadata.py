@@ -108,6 +108,8 @@ def _build_summary(normalized: dict[str, str]) -> str:
     aperture = _first_tag_value(normalized, ["Nikon:FNumber", "Composite:Aperture"])
     iso = _first_tag_value(normalized, ["Nikon:ISO"])
     lens = _build_lens_display(normalized)
+    af_area_mode = _first_tag_value(normalized, ["Nikon:AFAreaMode"])
+    subject_detection = _first_tag_value(normalized, ["Nikon:SubjectDetection"])
     picture_control = _first_tag_value(normalized, ["Nikon:PictureControlName"])
     vibration_reduction = _first_tag_value(normalized, ["Nikon:VibrationReduction", "Nikon:ElectronicVR"])
     white_balance = _first_tag_value(normalized, ["Nikon:WhiteBalance"])
@@ -130,6 +132,45 @@ def _build_summary(normalized: dict[str, str]) -> str:
 
     if lens:
         parts.append(lens)
+    if af_area_mode:
+        parts.append(af_area_mode)
+    if subject_detection:
+        parts.append(subject_detection)
+    if picture_control:
+        parts.append(picture_control)
+    if vibration_reduction:
+        parts.append(f"VR {vibration_reduction}")
+    if white_balance:
+        parts.append(white_balance)
+    if camera:
+        parts.append(_short_camera_name(camera))
+
+    return ", ".join(parts)
+
+
+def _build_still_summary(normalized: dict[str, str]) -> str:
+    """Build a shooting summary for still images.
+
+    Omits shutter speed, aperture, ISO, focal length, and lens model because
+    Lightroom Classic already surfaces those from standard EXIF tags.
+    Adds AF area mode, subject detection (when available), and release mode.
+    """
+    parts: list[str] = []
+
+    af_area_mode = _first_tag_value(normalized, ["Nikon:AFAreaMode"])
+    subject_detection = _first_tag_value(normalized, ["Nikon:SubjectDetection"])
+    shooting_mode = _first_tag_value(normalized, ["Nikon:ShootingMode"])
+    picture_control = _first_tag_value(normalized, ["Nikon:PictureControlName"])
+    vibration_reduction = _first_tag_value(normalized, ["Nikon:VibrationReduction", "Nikon:ElectronicVR"])
+    white_balance = _first_tag_value(normalized, ["Nikon:WhiteBalance"])
+    camera = _first_tag_value(normalized, ["Nikon:Model", "QuickTime:Model", "Composite:Model"])
+
+    if af_area_mode:
+        parts.append(af_area_mode)
+    if subject_detection:
+        parts.append(subject_detection)
+    if shooting_mode:
+        parts.append(shooting_mode)
     if picture_control:
         parts.append(picture_control)
     if vibration_reduction:
@@ -223,13 +264,38 @@ def extract_still_metadata_summary(file_path: str) -> str:
 
 
 def extract_still_metadata_summaries(file_paths: list[str]) -> dict[str, str]:
-    """Run exiftool once across all paths, returning {path: summary_string}.
+    """Run exiftool once across all still image paths, returning {path: summary_string}.
 
-    Paths with no usable metadata map to an empty string.
-    Keys are normalised with os.path.normpath so that callers can look up
-    with their own os.path.join()-built paths regardless of slash style.
+    Uses a still-specific field set (see _build_still_summary).
+    Keys are normalised with os.path.normpath so callers can use os.path.join()
+    paths regardless of slash style.
     """
     if not file_paths:
         return {}
-    extracted = extract_video_metadata_batch(file_paths)
-    return {os.path.normpath(path): meta.summary for path, meta in extracted.items()}
+
+    completed = subprocess.run(
+        [_EXIFTOOL_COMMAND, *_EXIFTOOL_ARGS, *file_paths],
+        capture_output=True, check=False, text=True,
+    )
+    if completed.returncode != 0:
+        stderr = completed.stderr.strip() or completed.stdout.strip() or "unknown exiftool error"
+        raise VideoMetadataError(f"exiftool failed: {stderr}")
+
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise VideoMetadataError(f"could not parse exiftool output: {exc}") from exc
+
+    result: dict[str, str] = {}
+    for raw_metadata in payload:
+        source_path = raw_metadata.get("SourceFile")
+        if not source_path:
+            continue
+        normalized = {
+            key: _format_metadata_value(value)
+            for key, value in raw_metadata.items()
+            if key != "SourceFile"
+        }
+        result[os.path.normpath(source_path)] = _build_still_summary(normalized)
+
+    return result
