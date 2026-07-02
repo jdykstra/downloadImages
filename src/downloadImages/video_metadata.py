@@ -1,8 +1,8 @@
 import json
+import os
 import re
 import subprocess
 from dataclasses import dataclass
-
 
 _EXIFTOOL_COMMAND = "exiftool"
 _EXIFTOOL_ARGS = ["-api", "LargeFileSupport=1", "-j", "-G1", "-a", "-s"]
@@ -226,8 +226,10 @@ def extract_still_metadata_summaries(file_paths: list[str]) -> dict[str, str]:
     """Run exiftool once across all paths, returning {path: summary_string}.
 
     Paths with no usable metadata map to an empty string.
+    Keys are normalised with os.path.normpath so that callers can look up
+    with their own os.path.join()-built paths regardless of slash style.
     """
     if not file_paths:
         return {}
     extracted = extract_video_metadata_batch(file_paths)
-    return {path: meta.summary for path, meta in extracted.items()}
+    return {os.path.normpath(path): meta.summary for path, meta in extracted.items()}

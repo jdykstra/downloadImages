@@ -151,7 +151,7 @@ def copy_image_files(
                         # and append it to dc:description (Lightroom Caption field).
                         xmp_description = description or ""
                         if _USE_EXIFTOOL:
-                            metadata_summary = exif_summaries.get(src_full_path, "")
+                            metadata_summary = exif_summaries.get(os.path.normpath(src_full_path), "")
                             if metadata_summary:
                                 xmp_description = (f"{xmp_description}&#xA;{metadata_summary}"
                                                    if xmp_description else metadata_summary)
