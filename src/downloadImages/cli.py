@@ -213,7 +213,6 @@ USAGE
 '''
 
     colorama.init()
-    caffeinateProcess = None
     if sys.platform not in ["darwin", "win32"]:
         sys.stderr.write("Only Mac OS and Windows are supported.")
 
@@ -232,11 +231,9 @@ USAGE
         parser.add_argument("-D", "--delete", dest="delete", action='store_true',
                             help="Delete files from card after successful download.")
         parser.add_argument("-a", "--automate", dest="automate",
-                            action='store_true', help="Import all images into Lightroom.")
-        parser.add_argument("-r", "--resolve", dest="automateResolve",
-                    action='store_true', help="Import all motion clips into DaVinci Resolve.")
+                            action='store_true', help="Import all images into Lightroom and motion clips into DaVinci Resolve.")
         parser.add_argument("-p", "--post-only", dest="post_only", action='store_true',
-                            help="Skip copying and only perform post-processing steps (automate, resolve).")
+                            help="Skip copying and only perform post-processing steps (automate).")
         parser.add_argument('-V', '--version', action='version',
                             version=program_version_message)
         parser.add_argument("destinations", nargs='+',
@@ -278,21 +275,19 @@ USAGE
             image_db = None
             warnings_shown = False
 
-        if image_db is not None:
-            has_stills = any(ext in STILL_FILE_TYPES for ext in image_db.file_type_count)
-            has_motions = any(ext in MOTION_FILE_TYPES for ext in image_db.file_type_count)
-        else:
-            has_stills = False
-            has_motions = False
+        file_type_count = image_db.file_type_count if image_db is not None else {}
+        has_stills = any(ext in STILL_FILE_TYPES for ext in file_type_count)
+        has_motions = any(ext in MOTION_FILE_TYPES for ext in file_type_count)
+        should_automate_post_processing = args.automate and (has_stills or has_motions)
 
-        if warnings_shown and ((args.automate and (has_stills or has_motions)) or (args.automateResolve and has_motions)):
+        if warnings_shown and should_automate_post_processing:
             if not _wait_for_ingest_confirmation():
                 return 2
 
         # Launch Lightroom to ingest all image files.  This will run asynchronously.
         # We do this even if there are no still images, because we use LightRoom
         # to track motion files, too.
-        if args.automate and (has_stills or has_motions):
+        if should_automate_post_processing:
             print(f"Ingesting all images to Lightroom...")
             if 'darwin' in sys.platform:
                 os.system("open -a \"" + LIGHTROOM_APP + "\" \"" +
@@ -302,7 +297,7 @@ USAGE
                           os.path.join(args.destinations[0], dir_name) + "\"")
 
         # Launch DaVinci Resolve to ingest all motion clips.  This will run asynchronously.
-        if args.automateResolve and has_motions:
+        if args.automate and has_motions:
             print(f"Ingesting motion to Resolve project {args.tag}...")
             today = datetime.date.today()
             day_stamp = str(today.month) + "-" + str(today.day)
