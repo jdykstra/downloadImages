@@ -1,7 +1,8 @@
+import os
 import unittest
 from unittest.mock import patch
 
-from downloadImages.video_metadata import extract_video_metadata_batch
+from downloadImages.video_metadata import extract_still_metadata_summaries, extract_video_metadata_batch
 
 
 class _CompletedProcess:
@@ -56,6 +57,91 @@ class VideoMetadataTests(unittest.TestCase):
         self.assertIn("Nikon Model", item.third_party_metadata)
         self.assertIn("ExifTool Warning", item.third_party_metadata)
         self.assertNotIn("Nikon Preview Image", item.third_party_metadata)
+
+    def test_af_area_mode_unknown_code_normalized_in_summary(self):
+        """Unknown (203) should appear as Subject-tracking AF, not Unknown (203)."""
+        sample_json = """[{
+            "SourceFile": "/tmp/test.MOV",
+            "Nikon:ExposureTime": "1/60",
+            "Nikon:FNumber": 9.0,
+            "Nikon:ISO": 79,
+            "Nikon:LensModel": "NIKKOR Z 800mm f/6.3 VR S Z TC-1.4x",
+            "Nikon:FocalLength": "1120.0 mm",
+            "Nikon:AFAreaMode": "Unknown (203)"
+        }]"""
+        with patch(
+            "downloadImages.video_metadata.subprocess.run",
+            return_value=_CompletedProcess(sample_json),
+        ):
+            metadata = extract_video_metadata_batch(["/tmp/test.MOV"])
+        summary = metadata["/tmp/test.MOV"].summary
+        self.assertIn("Subject-tracking AF", summary)
+        self.assertNotIn("Unknown", summary)
+
+    def test_af_area_mode_human_readable_passes_through_unchanged(self):
+        """A value already decoded by exiftool should pass through without alteration."""
+        sample_json = """[{
+            "SourceFile": "/tmp/test.MOV",
+            "Nikon:ExposureTime": "1/500",
+            "Nikon:FNumber": 9.0,
+            "Nikon:ISO": 640,
+            "Nikon:LensModel": "NIKKOR Z 800mm f/6.3 VR S",
+            "Nikon:FocalLength": "800.0 mm",
+            "Nikon:AFAreaMode": "3D-tracking"
+        }]"""
+        with patch(
+            "downloadImages.video_metadata.subprocess.run",
+            return_value=_CompletedProcess(sample_json),
+        ):
+            metadata = extract_video_metadata_batch(["/tmp/test.MOV"])
+        summary = metadata["/tmp/test.MOV"].summary
+        self.assertIn("3D-tracking", summary)
+
+    def test_still_summary_ch_mode_shows_fps(self):
+        """CH drive mode with CHModeShootingSpeed should display fps, not 'Continuous'."""
+        sample_json = """[{
+            "SourceFile": "/tmp/test.NEF",
+            "Nikon:AFAreaMode": "3D-tracking",
+            "Nikon:ShootingMode": "Continuous, Auto ISO",
+            "Nikon:HighFrameRate": "CH",
+            "NikonCustom:CHModeShootingSpeed": "20 fps"
+        }]"""
+        with patch(
+            "downloadImages.video_metadata.subprocess.run",
+            return_value=_CompletedProcess(sample_json),
+        ):
+            summaries = extract_still_metadata_summaries(["/tmp/test.NEF"])
+        summary = summaries[os.path.normpath("/tmp/test.NEF")]
+        self.assertIn("20 fps", summary)
+        self.assertNotIn("Continuous", summary)
+
+    def test_still_summary_high_frame_rate_mode_shows_fps(self):
+        """C30/C60/C120 modes should show the encoded fps number."""
+        sample_json = """[{
+            "SourceFile": "/tmp/test.NEF",
+            "Nikon:HighFrameRate": "C120"
+        }]"""
+        with patch(
+            "downloadImages.video_metadata.subprocess.run",
+            return_value=_CompletedProcess(sample_json),
+        ):
+            summaries = extract_still_metadata_summaries(["/tmp/test.NEF"])
+        summary = summaries[os.path.normpath("/tmp/test.NEF")]
+        self.assertIn("120 fps", summary)
+
+    def test_still_summary_single_frame_shows_shooting_mode(self):
+        """Without HighFrameRate, shooting mode falls back to ShootingMode tag."""
+        sample_json = """[{
+            "SourceFile": "/tmp/test.NEF",
+            "Nikon:ShootingMode": "Single-Frame"
+        }]"""
+        with patch(
+            "downloadImages.video_metadata.subprocess.run",
+            return_value=_CompletedProcess(sample_json),
+        ):
+            summaries = extract_still_metadata_summaries(["/tmp/test.NEF"])
+        summary = summaries[os.path.normpath("/tmp/test.NEF")]
+        self.assertIn("Single-Frame", summary)
 
 
 if __name__ == "__main__":

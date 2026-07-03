@@ -13,6 +13,29 @@ _BINARY_TAG_NAMES = {
     "ThumbnailImage",
 }
 
+# Mapping from Nikon AFAreaMode numeric codes to human-readable names.
+# exiftool returns "Unknown (NNN)" for codes that are not yet mapped in its
+# tag tables.  Codes are sourced from exiftool Nikon.pm: AFInfo2V0400 PrintConv
+# (Expeed 7 / Z8 / Z9) and the %aFAreaModeCD contrast-detect table which
+# fills in codes absent from the V0400 table (notably 203 = Subject-tracking AF).
+_NIKON_AF_AREA_MODE_BY_CODE: dict[str, str] = {
+    "192": "Pinpoint",
+    "193": "Single",
+    "195": "Wide (S)",
+    "196": "Wide (L)",
+    "197": "Auto",
+    "199": "Auto (Animal)",
+    "200": "Normal-area AF",
+    "201": "Wide-area AF",
+    "202": "Face-priority AF",
+    "203": "Subject-tracking AF",
+    "204": "Dynamic Area (S)",
+    "205": "Dynamic Area (M)",
+    "206": "Dynamic Area (L)",
+    "207": "3D-tracking",
+    "208": "Wide (C1/C2)",
+}
+
 
 class VideoMetadataError(Exception):
     """Raised when video metadata extraction fails."""
@@ -108,7 +131,7 @@ def _build_summary(normalized: dict[str, str]) -> str:
     aperture = _first_tag_value(normalized, ["Nikon:FNumber", "Composite:Aperture"])
     iso = _first_tag_value(normalized, ["Nikon:ISO"])
     lens = _build_lens_display(normalized)
-    af_area_mode = _first_tag_value(normalized, ["Nikon:AFAreaMode"])
+    af_area_mode = _normalize_af_area_mode(_first_tag_value(normalized, ["Nikon:AFAreaMode"]))
     subject_detection = _first_tag_value(normalized, ["Nikon:SubjectDetection"])
     picture_control = _first_tag_value(normalized, ["Nikon:PictureControlName"])
     vibration_reduction = _first_tag_value(normalized, ["Nikon:VibrationReduction", "Nikon:ElectronicVR"])
@@ -148,6 +171,29 @@ def _build_summary(normalized: dict[str, str]) -> str:
     return ", ".join(parts)
 
 
+def _build_still_frame_rate(normalized: dict[str, str]) -> str:
+    """Return a display fps string for continuous-drive still images.
+
+    Uses ``Nikon:HighFrameRate`` to determine the drive mode, then resolves
+    the actual rate from the appropriate custom-settings tag.  Returns an
+    empty string for single-frame shots or when the rate cannot be determined.
+
+    Nikon:HighFrameRate values:
+      - ``CH``  – Continuous High; rate stored in NikonCustom:CHModeShootingSpeed
+      - ``C30`` / ``C60`` / ``C120`` – high-frame-rate modes; fps encoded in the name
+      - tag absent – single-frame or CL (tag not written for CL mode)
+    """
+    high_frame_rate = _first_tag_value(normalized, ["Nikon:HighFrameRate"])
+    if not high_frame_rate:
+        return ""
+    m = re.fullmatch(r"C(\d+)", high_frame_rate)
+    if m:
+        return f"{m.group(1)} fps"
+    if high_frame_rate == "CH":
+        return _first_tag_value(normalized, ["NikonCustom:CHModeShootingSpeed"])
+    return ""
+
+
 def _build_still_summary(normalized: dict[str, str]) -> str:
     """Build a shooting summary for still images.
 
@@ -168,7 +214,10 @@ def _build_still_summary(normalized: dict[str, str]) -> str:
         parts.append(af_area_mode)
     if subject_detection:
         parts.append(subject_detection)
-    if shooting_mode:
+    fps = _build_still_frame_rate(normalized)
+    if fps:
+        parts.append(fps)
+    elif shooting_mode:
         parts.append(shooting_mode)
     if picture_control:
         parts.append(picture_control)
@@ -213,6 +262,20 @@ def _build_third_party_metadata(normalized: dict[str, str]) -> dict[str, str]:
             continue
         metadata[f"{group_name} {_humanize_tag_name(tag_name)}"] = value
     return metadata
+
+
+def _normalize_af_area_mode(value: str) -> str:
+    """Translate ``Unknown (NNN)`` AF area mode codes to human-readable names.
+
+    exiftool returns ``Unknown (NNN)`` for Nikon video maker-note AF area mode
+    codes not yet mapped in its tag tables.  This applies a local mapping
+    derived from exiftool Nikon.pm so motion-file summaries show the same
+    friendly strings as still-image summaries.
+    """
+    m = re.fullmatch(r"Unknown \((\d+)\)", value)
+    if m:
+        return _NIKON_AF_AREA_MODE_BY_CODE.get(m.group(1), value)
+    return value
 
 
 def _first_tag_value(normalized: dict[str, str], tag_paths: list[str]) -> str:
