@@ -10,7 +10,7 @@ from datetime import datetime
 from .apppaths import RESOLVE_APP_NAME, RESOLVE_EXE_PATH
 from .python_get_resolve import GetResolve
 from .sourceimages import MOTION_FILE_TYPES
-from .video_metadata import ExtractedVideoMetadata, extract_video_metadata_batch
+from .decode_metadata import ExtractedVideoMetadata, extract_video_metadata_batch
 
 """ Project preset used.  """
 INGRESS_PROJECT_PRESET="JWD"

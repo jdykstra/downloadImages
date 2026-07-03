@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from downloadImages.video_metadata import extract_still_metadata_summaries, extract_video_metadata_batch
+from downloadImages.decode_metadata import extract_still_metadata_summaries, extract_video_metadata_batch
 
 
 class _CompletedProcess:
@@ -40,7 +40,7 @@ class VideoMetadataTests(unittest.TestCase):
 ]"""
 
         with patch(
-            "downloadImages.video_metadata.subprocess.run",
+            "downloadImages.decode_metadata.subprocess.run",
             return_value=_CompletedProcess(sample_json),
         ):
             metadata = extract_video_metadata_batch(["/tmp/CKQ8954.MOV"], "test description")
@@ -70,7 +70,7 @@ class VideoMetadataTests(unittest.TestCase):
             "Nikon:AFAreaMode": "Unknown (203)"
         }]"""
         with patch(
-            "downloadImages.video_metadata.subprocess.run",
+            "downloadImages.decode_metadata.subprocess.run",
             return_value=_CompletedProcess(sample_json),
         ):
             metadata = extract_video_metadata_batch(["/tmp/test.MOV"])
@@ -90,7 +90,7 @@ class VideoMetadataTests(unittest.TestCase):
             "Nikon:AFAreaMode": "3D-tracking"
         }]"""
         with patch(
-            "downloadImages.video_metadata.subprocess.run",
+            "downloadImages.decode_metadata.subprocess.run",
             return_value=_CompletedProcess(sample_json),
         ):
             metadata = extract_video_metadata_batch(["/tmp/test.MOV"])
@@ -107,7 +107,7 @@ class VideoMetadataTests(unittest.TestCase):
             "NikonCustom:CHModeShootingSpeed": "20 fps"
         }]"""
         with patch(
-            "downloadImages.video_metadata.subprocess.run",
+            "downloadImages.decode_metadata.subprocess.run",
             return_value=_CompletedProcess(sample_json),
         ):
             summaries = extract_still_metadata_summaries(["/tmp/test.NEF"])
@@ -122,7 +122,7 @@ class VideoMetadataTests(unittest.TestCase):
             "Nikon:HighFrameRate": "C120"
         }]"""
         with patch(
-            "downloadImages.video_metadata.subprocess.run",
+            "downloadImages.decode_metadata.subprocess.run",
             return_value=_CompletedProcess(sample_json),
         ):
             summaries = extract_still_metadata_summaries(["/tmp/test.NEF"])
@@ -136,7 +136,7 @@ class VideoMetadataTests(unittest.TestCase):
             "Nikon:ShootingMode": "Single-Frame"
         }]"""
         with patch(
-            "downloadImages.video_metadata.subprocess.run",
+            "downloadImages.decode_metadata.subprocess.run",
             return_value=_CompletedProcess(sample_json),
         ):
             summaries = extract_still_metadata_summaries(["/tmp/test.NEF"])

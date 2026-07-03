@@ -6,7 +6,7 @@ import time
 from progressbar import AbsoluteETA, AdaptiveTransferSpeed, GranularBar, ProgressBar
 
 from .sourceimages import CliError, SourceImage, STILL_FILE_TYPES
-from .video_metadata import VideoMetadataError, extract_still_metadata_summaries
+from .decode_metadata import VideoMetadataError, extract_still_metadata_summaries
 
 # Set to False to disable exiftool metadata gathering without removing the feature.
 _USE_EXIFTOOL: bool = True
