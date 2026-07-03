@@ -107,7 +107,7 @@ def _do_download(args, destination_dirs):
         insufficient_space = []
         for dest in destination_dirs:
             # Find the root volume for the destination directory
-            check_path = dest
+            check_path = os.path.abspath(dest)
             while not os.path.ismount(check_path) and os.path.dirname(check_path) != check_path:
                 check_path = os.path.dirname(check_path)
             try:
@@ -264,7 +264,7 @@ USAGE
         today = datetime.date.today()
         dir_name = str(today.month) + "-" + str(today.day) + " " + args.tag
         for dest_path in args.destinations:
-            destination_dirs.append(os.path.join(dest_path, dir_name))
+            destination_dirs.append(os.path.abspath(os.path.join(dest_path, dir_name)))
 
         # Download source images to the destination(s).
         if not args.post_only:
