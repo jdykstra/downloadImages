@@ -1,3 +1,3 @@
 # downloadImages package
 
-__version__ = "2.15"
+__version__ = "2.16"

@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from downloadImages.cli import main
+from downloadImages.cli import _do_download, main
 
 
 class CliMainTests(unittest.TestCase):
@@ -61,3 +61,44 @@ class CliMainTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as e:
             main(["downloadImages", "-r", "C:/dest"])
         self.assertEqual(e.exception.code, 2)
+
+    def test_do_download_accepts_relative_destination_paths(self):
+        image_db = SimpleNamespace(
+            file_type_count={},
+            locked_file_count=0,
+            db=[],
+            total_to_transfer=0,
+            rollover_occurred_prefixes=[],
+            near_rollover_prefixes=[],
+        )
+
+        args = SimpleNamespace(
+            download_locked_only=False,
+            description=None,
+            delete=False,
+        )
+
+        class DummyUsage:
+            free = 10 * 1024 * 1024 * 1024
+
+        def fake_disk_usage(path):
+            if path == "":
+                raise AssertionError("empty path should not be used")
+            return DummyUsage()
+
+        with patch("downloadImages.cli.find_source_volume", return_value=[("TestCard", "/Volumes/TestCard")]), patch(
+            "downloadImages.cli.find_source_images", return_value=image_db
+        ), patch("downloadImages.cli.copy_image_files", return_value=0), patch(
+            "downloadImages.cli.shutil.disk_usage", side_effect=fake_disk_usage
+        ), patch("downloadImages.cli.os.path.isdir", return_value=False), patch(
+            "downloadImages.cli.os.makedirs"
+        ), patch("downloadImages.cli.play_notification_sound"), patch(
+            "downloadImages.cli.play_warning_pause_sound"
+        ), patch("downloadImages.cli.subprocess.Popen"), patch("downloadImages.cli.subprocess.run"), patch(
+            "downloadImages.cli.input", return_value="n"
+        ):
+            result = _do_download(args, ["relative-dest"])
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], image_db)
+        self.assertFalse(result[1])
