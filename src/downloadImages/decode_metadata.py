@@ -93,6 +93,7 @@ def _build_resolve_metadata(
         metadata["Lens"] = lens
     if keywords:
         metadata["Keywords"] = keywords
+
     if summary:
         metadata["Comments"] = summary
 
@@ -101,6 +102,44 @@ def _build_resolve_metadata(
         metadata["Date Recorded"] = recorded_at
 
     return metadata
+
+
+def _build_image_area_label(normalized: dict[str, str]) -> str:
+    """Return "FX", "DX", "other", or "" for the sensor area used for this clip.
+
+    Uses ``Nikon:CropHiSpeed`` from the maker notes.  Returns an empty string
+    when the tag is absent so the caller adds nothing to the summary.
+
+    Heuristic (verified against Z9 FX and DX 4K clips):
+    - x-offset == 0 in the crop coordinates → full sensor width → "FX"
+    - x-offset  > 0 and crop/source width ratio ≈ 1.5x → "DX"
+    - x-offset  > 0, other ratio → "other"
+    """
+    tag_value = _first_tag_value(normalized, ["Nikon:CropHiSpeed"])
+    if not tag_value:
+        return ""
+
+    upper = tag_value.upper()
+    if "FX" in upper:
+        return "FX"
+    if "DX" in upper:
+        return "DX"
+
+    coord_match = re.search(r"at pixel (\d+),", tag_value)
+    if not coord_match:
+        return ""
+
+    x_offset = int(coord_match.group(1))
+    if x_offset == 0:
+        return "FX"
+
+    dim_match = re.search(r"(\d+)x\d+ cropped to (\d+)x", tag_value)
+    if dim_match:
+        source_w, crop_w = int(dim_match.group(1)), int(dim_match.group(2))
+        if source_w and 1.4 <= source_w / crop_w <= 1.6:
+            return "DX"
+
+    return "other"
 
 
 def _build_summary(normalized: dict[str, str]) -> str:
@@ -144,6 +183,9 @@ def _build_summary(normalized: dict[str, str]) -> str:
         parts.append(f"VR {vibration_reduction}")
     if white_balance:
         parts.append(white_balance)
+    image_area = _build_image_area_label(normalized)
+    if image_area:
+        parts.append(image_area)
     if camera:
         parts.append(_short_camera_name(camera))
 

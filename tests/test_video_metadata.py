@@ -143,6 +143,38 @@ class VideoMetadataTests(unittest.TestCase):
         summary = summaries[os.path.normpath("/tmp/test.NEF")]
         self.assertIn("Single-Frame", summary)
 
+    def test_fx_image_area_appears_before_camera_in_comments(self):
+        """CropHiSpeed with zero x-offset (full sensor width) yields 'FX' before camera name."""
+        sample_json = """[{
+            "SourceFile": "/tmp/fx.MOV",
+            "Nikon:Model": "NIKON Z 9",
+            "Nikon:CropHiSpeed": "16:9 Crop (8280x5520 cropped to 8280x4656 at pixel 0,432)"
+        }]"""
+        with patch(
+            "downloadImages.decode_metadata.subprocess.run",
+            return_value=_CompletedProcess(sample_json),
+        ):
+            metadata = extract_video_metadata_batch(["/tmp/fx.MOV"])
+        comments = metadata["/tmp/fx.MOV"].resolve_metadata["Comments"]
+        self.assertIn("FX", comments)
+        self.assertLess(comments.index("FX"), comments.index("Z 9"))
+
+    def test_dx_image_area_appears_before_camera_in_comments(self):
+        """CropHiSpeed with ~1.5x center crop yields 'DX' before camera name."""
+        sample_json = """[{
+            "SourceFile": "/tmp/dx.MOV",
+            "Nikon:Model": "NIKON Z 9",
+            "Nikon:CropHiSpeed": "Unknown (7) (8280x5520 cropped to 5408x3048 at pixel 1436,1236)"
+        }]"""
+        with patch(
+            "downloadImages.decode_metadata.subprocess.run",
+            return_value=_CompletedProcess(sample_json),
+        ):
+            metadata = extract_video_metadata_batch(["/tmp/dx.MOV"])
+        comments = metadata["/tmp/dx.MOV"].resolve_metadata["Comments"]
+        self.assertIn("DX", comments)
+        self.assertLess(comments.index("DX"), comments.index("Z 9"))
+
 
 if __name__ == "__main__":
     unittest.main()

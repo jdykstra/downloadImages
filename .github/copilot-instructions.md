@@ -8,6 +8,8 @@ This Python application downloads images and videos from DCF volumes (SD cards) 
 ### Core Files
 - **`downloadImages/downloadImages.py`**: Main CLI application with download logic
 - **`downloadImages/python_get_resolve.py`**: DaVinci Resolve API integration wrapper (**Do not modify this file; it is supplied by Blackmagic Design.**)
+- **-`downloadImages/decode_metadata.py`** Extracts manufacturer-specific metainfo from files using external exiftool process.
+- **-`downloadImages/nikon_metadata.py`** Nikon-specific mappings for metadata values.
 - **`requirements.txt`**: Single dependency (progressbar2)
 
 ### Data Flow

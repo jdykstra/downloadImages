@@ -106,10 +106,16 @@ def _do_download(args, destination_dirs):
         min_required = image_db.total_to_transfer + 200 * 1024 * 1024  # 200 MB buffer
         insufficient_space = []
         for dest in destination_dirs:
-            # Find the root volume for the destination directory
+            # Find the nearest existing parent directory to check free space.
+            # This is more robust than scanning for mount points, especially on Windows
+            # where os.path.ismount() can fail on non-existent paths.
             check_path = os.path.abspath(dest)
-            while not os.path.ismount(check_path) and os.path.dirname(check_path) != check_path:
-                check_path = os.path.dirname(check_path)
+            while not os.path.exists(check_path):
+                parent = os.path.dirname(check_path)
+                if parent == check_path:
+                    break
+                check_path = parent
+
             try:
                 usage = shutil.disk_usage(check_path)
                 if usage.free < min_required:
