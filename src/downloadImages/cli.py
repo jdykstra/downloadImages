@@ -255,6 +255,17 @@ USAGE
         # Make sure the path to each destination directory exists.  This helps prevent a misplaced tag
         # or description from being interpreter as yet another destination.
         for path in args.destinations:
+            # On Windows, paths without an explicit drive letter (e.g. "/" or "\foo") are
+            # silently resolved against the current drive.  This is almost always a shell
+            # quoting accident (e.g. "D:\path"/ in PowerShell appends "/" as a separate
+            # argument).  Catch it early so the user gets a clear error instead of a
+            # confusing free-space warning on the wrong volume.
+            if sys.platform == "win32" and not os.path.splitdrive(path)[0]:
+                print(
+                    f"Error:  Destination path \"{path}\" has no drive letter. "
+                    "On Windows, all destination paths must include an explicit drive letter (e.g. H:\\\\...).")
+                play_notification_sound()
+                return 2
             if not os.path.exists(path):
                 print(
                     f"Error:  Destination path \"{path}\" doesn't exist.")

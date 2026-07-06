@@ -2,6 +2,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 from dataclasses import dataclass
 
 _EXIFTOOL_COMMAND = "exiftool"
@@ -14,6 +15,28 @@ _BINARY_TAG_NAMES = {
 }
 
 from .nikon_mappings import NIKON_AF_AREA_MODE_BY_CODE as _NIKON_AF_AREA_MODE_BY_CODE
+
+
+def _run_exiftool(file_paths: list[str]) -> subprocess.CompletedProcess:
+    """Run exiftool on *file_paths*, writing them to a temporary argfile.
+
+    Passing hundreds of paths directly on the command line exceeds Windows'
+    32,767-character CreateProcess limit.  exiftool's ``-@`` flag reads
+    additional arguments from a file (one path per line), keeping the
+    command line short regardless of how many files are processed.
+    """
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
+        argfile = f.name
+        f.write("\n".join(file_paths))
+    try:
+        return subprocess.run(
+            [_EXIFTOOL_COMMAND, *_EXIFTOOL_ARGS, "-@", argfile],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+    finally:
+        os.unlink(argfile)
 
 
 class VideoMetadataError(Exception):
@@ -31,12 +54,7 @@ def extract_video_metadata_batch(file_paths: list[str], description: str | None 
     if not file_paths:
         return {}
 
-    completed = subprocess.run(
-        [_EXIFTOOL_COMMAND, *_EXIFTOOL_ARGS, *file_paths],
-        capture_output=True,
-        check=False,
-        text=True,
-    )
+    completed = _run_exiftool(file_paths)
 
     if completed.returncode != 0:
         stderr = completed.stderr.strip() or completed.stdout.strip() or "unknown exiftool error"
@@ -354,10 +372,7 @@ def extract_still_metadata_summaries(file_paths: list[str]) -> dict[str, str]:
     if not file_paths:
         return {}
 
-    completed = subprocess.run(
-        [_EXIFTOOL_COMMAND, *_EXIFTOOL_ARGS, *file_paths],
-        capture_output=True, check=False, text=True,
-    )
+    completed = _run_exiftool(file_paths)
     if completed.returncode != 0:
         stderr = completed.stderr.strip() or completed.stdout.strip() or "unknown exiftool error"
         raise VideoMetadataError(f"exiftool failed: {stderr}")
